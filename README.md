@@ -1,6 +1,8 @@
 # Farkle
 
-A single-file, pass-and-play Farkle prototype. Open `index.html` in any browser — no build, no dependencies beyond Google Fonts (falls back to system serif/sans offline).
+A single-file, pass-and-play Farkle prototype, built for phone play. Open `index.html` in any browser — no build, no dependencies beyond Google Fonts (falls back to system serif/sans offline).
+
+Play: <https://farkle.mathieu.cc/>
 
 ## What works
 
@@ -12,6 +14,10 @@ A single-file, pass-and-play Farkle prototype. Open `index.html` in any browser 
 - First to 10,000 wins; scores, turn, and dice persist in `localStorage`, so a refresh doesn't lose the game.
 - Keyboard: `R` roll, `B` bank, `1`–`6` toggle dice, `Esc` close rules.
 - **Shake to roll** on phones: flip the switch under the action buttons, then shake. Shaking only rolls when a roll is actually legal (it commits a valid selection, or refuses while dice are still on the table).
+
+## Mobile layout
+
+The phone view is one screen, no scrolling: score strip at the top (the current player's chip scrolls itself into view), big dice in the middle, and stats + Roll/Bank pinned to the bottom thumb zone above the safe area. Dice run three across at up to 116px so a thumb can hit them; the empty tray shows dashed placeholders. Landscape phones switch to a side rail with all six dice in one row and the shake switch hidden to save height.
 
 ## Testing on a phone
 
