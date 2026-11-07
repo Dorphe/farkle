@@ -1,13 +1,14 @@
 # Farkle
 
-A single-file, pass-and-play Farkle prototype, built for phone play. Open `index.html` in any browser — no build, no dependencies beyond Google Fonts (falls back to system serif/sans offline).
+A single-file, pass-and-play Farkle prototype, built for phone play. Open `index.html` in any browser — no build step. Fonts come from Google Fonts and the 3D table pulls three.js + cannon-es from jsDelivr; if either is unavailable the game falls back to the flat dice and system fonts.
 
 Play: <https://farkle.mathieu.cc/>
 
 ## What works
 
 - Add 2–6 players and name them; start a game.
-- Roll six dice, tap dice to keep, watch the selected set score live.
+- Roll six dice on a 3D table — real rigid-body physics (cannon-es), tap a die to keep it. The die's value is whatever face is pointing up when the simulation settles, so the throw itself decides the roll.
+- Tap dice directly on the 3D table, or keep the flat dice if WebGL is unavailable.
 - Bank points or keep rolling with the dice that are left.
 - Full classic scoring: singles, three-of-a-kind (×2/×4/×8 for four/five/six), straight, three pairs, two triplets.
 - Farkle detection (no scoring dice = bust), hot dice when all six score, three farkles in a row = −1,000.
@@ -37,6 +38,12 @@ Motion sensors need a secure context: serve the file over HTTPS (GitHub Pages, N
 
 A selection is only valid if every die in it belongs to a scoring combination. The turn score is banked only when you press **Bank**.
 
+## 3D dice
+
+The tray is a three.js scene over a cannon-es world: six 1×1×1 boxes with canvas-textured pips, thrown from a jittered grid, bouncing off invisible arena walls. When everything comes to rest (or after 2.2 s) each die is snapped to the nearest flat orientation and its top face becomes the value. Rolling the rest of the dice re-throws only the dice still on the table.
+
+The GL layer is progressive enhancement — `window.Dice3D` mounts only if WebGL initialises, and any failure leaves the original DOM dice in charge.
+
 ## Structure
 
-Everything lives in `index.html`: markup, CSS tokens, and a small state machine (`roll → keep → bank / bust`) with a memoized scoring search. Shake detection reads `devicemotion`, compares the acceleration magnitude frame to frame, and fires on a jump of >15 m/s² with a 1.1 s cooldown so one shake doesn't roll twice.
+Everything lives in `index.html`: markup, CSS tokens, a small state machine (`roll → keep → bank / bust`) with a memoized scoring search, and the module script for the dice table. Shake detection reads `devicemotion`, compares the acceleration magnitude frame to frame, and fires on a jump of >15 m/s² with a 1.1 s cooldown so one shake doesn't roll twice.
