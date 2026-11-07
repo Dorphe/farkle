@@ -1252,6 +1252,14 @@ function snapDie(d){
   const delta = new THREE.Quaternion().setFromUnitVectors(v.normalize(), UP);
   const finalQ = delta.multiply(q).normalize();
 
+  // square the die up to the table: keep the face up, snap yaw to 90° steps so
+  // neighbouring dice can never overlap by a corner
+  const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(finalQ);
+  const ang = Math.atan2(fwd.z, fwd.x);
+  const quarter = Math.PI / 2;
+  const fix = new THREE.Quaternion().setFromAxisAngle(UP, Math.round(ang / quarter) * quarter - ang);
+  finalQ.premultiply(fix).normalize();
+
   const x = Math.max(-(ARENA_X - 0.5), Math.min(ARENA_X - 0.5, d.body.position.x));
   const z = Math.max(-(ARENA_Z - 0.5), Math.min(ARENA_Z - 0.5, d.body.position.z));
   const y = Math.max(0.5, d.body.position.y);
@@ -1311,9 +1319,39 @@ function checkSettle(now){
   if (stillFrames > 5 || now - rollStart > SETTLE_MS) finishRoll();
 }
 
+function separateDice(){
+  // All dice end up flat on the table: push any two that overlap apart in the
+  // plane, then drop them all to y = 0.5 so nothing intersects or stacks.
+  for (let pass = 0; pass < 8; pass++){
+    for (let i = 0; i < dice.length; i++){
+      for (let j = i + 1; j < dice.length; j++){
+        const a = dice[i].body.position, b = dice[j].body.position;
+        let dx = b.x - a.x, dz = b.z - a.z;
+        let dist = Math.hypot(dx, dz);
+        const min = 1.12;
+        if (dist > min) continue;
+        if (dist < 0.001){ dx = Math.random() - 0.5; dz = Math.random() - 0.5; dist = Math.hypot(dx, dz) || 0.001; }
+        const push = (min - dist) / 2 + 0.005;
+        const ux = (dx / dist) * push, uz = (dz / dist) * push;
+        a.x -= ux; a.z -= uz;
+        b.x += ux; b.z += uz;
+      }
+    }
+    for (const d of dice){
+      d.body.position.x = Math.max(-(ARENA_X - 0.5), Math.min(ARENA_X - 0.5, d.body.position.x));
+      d.body.position.z = Math.max(-(ARENA_Z - 0.5), Math.min(ARENA_Z - 0.5, d.body.position.z));
+    }
+  }
+  for (const d of dice){
+    d.body.position.y = 0.5;
+    d.mesh.position.set(d.body.position.x, 0.5, d.body.position.z);
+  }
+}
+
 function finishRoll(){
   rolling = false;
   const values = dice.map(snapDie);
+  separateDice();
   currentFaces = values.slice();
   idleFrames = 0;
   startLoop();
@@ -1415,7 +1453,7 @@ function resize(){
   const needW = 6.5;
   const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
   const distW = (needW / 2) / Math.tan(hfov / 2);
-  const distH = 1.2 / Math.tan(vfov / 2);
+  const distH = 1.7 / Math.tan(vfov / 2);   // keep the whole table in frame
   const dist = Math.max(distW, 4.4, distH);
   const tilt = 0.96;
   camera.position.set(0, Math.sin(tilt) * dist, Math.cos(tilt) * dist);
