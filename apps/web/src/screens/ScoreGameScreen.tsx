@@ -10,6 +10,7 @@ import { useSession } from "@/store/session.ts";
 import { avatarColor } from "@/screens/SetupScreen.tsx";
 import { playCue, haptic } from "@/lib/audio.ts";
 import { track } from "@/lib/analytics.ts";
+import { shareSummary } from "@/lib/share.ts";
 
 const fmt = (value: number) => value.toLocaleString("en-US");
 
@@ -36,6 +37,7 @@ export function ScoreGameScreen() {
   const [correcting, setCorrecting] = useState<ScorepadEntry | null>(null);
   const [correctionValue, setCorrectionValue] = useState("");
   const [correctionKind, setCorrectionKind] = useState<"score" | "farkle">("score");
+  const [toast, setToast] = useState<string | null>(null);
   const turnStarted = useRef(performance.now());
 
   const view = useMemo(() => (scorepad ? deriveScorepad(scorepad) : null), [scorepad]);
@@ -44,6 +46,12 @@ export function ScoreGameScreen() {
     setEntry("");
     turnStarted.current = performance.now();
   }, [view?.currentPlayerId]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   if (!scorepad || !view) return <Navigate to="/score/setup" replace />;
 
@@ -138,6 +146,27 @@ export function ScoreGameScreen() {
     dispatchScore({ type: "endGame", at: Date.now() });
     endScoreGame();
     navigate("/score/setup", { replace: true });
+  }
+
+  async function shareGame() {
+    const pad = scorepad;
+    const currentView = view;
+    if (!pad || !currentView) return;
+    const winnerId = currentView.winnerId;
+    if (!winnerId) return;
+    const winner = pad.players.find((player) => player.id === winnerId);
+    if (!winner) return;
+    const outcome = await shareSummary({
+      winner: winner.name,
+      winnerScore: currentView.totals[winnerId] ?? 0,
+      target: pad.config.target,
+      players: pad.players.map((player) => ({
+        name: player.name,
+        score: currentView.totals[player.id] ?? 0,
+      })),
+    });
+    if (outcome === "copied") setToast("Scorecard copied to the clipboard.");
+    else if (outcome === "failed") setToast("Couldn't share from this browser.");
   }
 
   return (
@@ -276,6 +305,12 @@ export function ScoreGameScreen() {
         />
       ) : null}
 
+      {toast ? (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      ) : null}
+
       {correcting ? (
         <CorrectionSheet
           player={playerName(scorepad, correcting.playerId)}
@@ -302,9 +337,15 @@ export function ScoreGameScreen() {
             <span className="winner-sub">
               {view.manuallyEnded ? "Ended by the keeper" : `First to ${fmt(scorepad.config.target)}`}
             </span>
-            <button type="button" className="share-link" onClick={() => setLedgerOpen(true)}>
-              Review ledger
-            </button>
+            <div className="winner-links">
+              <button type="button" className="share-link" onClick={() => setLedgerOpen(true)}>
+                Review ledger
+              </button>
+              <span aria-hidden="true">·</span>
+              <button type="button" className="share-link" onClick={() => void shareGame()}>
+                Share result
+              </button>
+            </div>
           </div>
           <div className="winner-actions">
             <button
@@ -364,25 +405,34 @@ function LedgerSheet({
             entries
               .slice()
               .reverse()
-              .map((item) => (
-                <div className="ledger-row" key={item.entry.id}>
-                  <div className="ledger-main">
-                    <span className="ledger-name">{playerName(state, item.playerId)}</span>
-                    <span className={`ledger-amount ${item.kind === "farkle" ? "is-muted" : ""}`}>
-                      {item.kind === "farkle" ? "Farkle" : `+${fmt(item.total)}`}
-                    </span>
+              .map((item) => {
+                const correction = item.correctedBy
+                  ? state.ledger.find((entry) => entry.id === item.correctedBy)
+                  : undefined;
+                return (
+                  <div className="ledger-row" key={item.entry.id}>
+                    <div className="ledger-main">
+                      <span className="ledger-name">{playerName(state, item.playerId)}</span>
+                      <span className={`ledger-amount ${item.kind === "farkle" ? "is-muted" : ""}`}>
+                        {item.kind === "farkle" ? "Farkle" : `+${fmt(item.total)}`}
+                      </span>
+                    </div>
+                    <div className="ledger-meta">
+                      <span>
+                        {timeLabel(item.entry.at)} · → {fmt(item.resultingTotal)}
+                      </span>
+                      <button type="button" className="mini-link" onClick={() => onCorrect(item.entry)}>
+                        Correct
+                      </button>
+                    </div>
+                    {correction ? (
+                      <span className="ledger-correction">
+                        was {fmt(item.entry.total)} · corrected {timeLabel(correction.at)}
+                      </span>
+                    ) : null}
                   </div>
-                  <div className="ledger-meta">
-                    <span>
-                      {timeLabel(item.entry.at)} · → {fmt(item.resultingTotal)}
-                      {item.correctedBy ? " · corrected" : ""}
-                    </span>
-                    <button type="button" className="mini-link" onClick={() => onCorrect(item.entry)}>
-                      Correct
-                    </button>
-                  </div>
-                </div>
-              ))
+                );
+              })
           )}
         </div>
 
