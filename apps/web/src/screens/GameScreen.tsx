@@ -408,18 +408,9 @@ export function GameScreen() {
           </span>
           <div className="turn-block">
             <span className="turn-name">{player.name}</span>
-            <span className="turn-meta">
-              turn {player.turns + 1} · {fmt(player.score)} points
-            </span>
           </div>
-          <div className="farkles">
-            <span className="farkles-label">FARKLES</span>
-            <span className="dots" aria-hidden="true">
-              {[0, 1, 2].map((index) => (
-                <span key={index} className={`dot ${index < player.streak ? "on" : ""}`} />
-              ))}
-            </span>
-          </div>
+          <span className="turn-score">{fmt(player.score)}</span>
+          {player.streak > 0 ? <span className="sr-only">{player.streak} farkles in a row</span> : null}
         </div>
       </div>
 

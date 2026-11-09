@@ -431,38 +431,15 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.turn-meta {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.farkles {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
+.turn-score {
   margin-left: auto;
   flex: none;
-}
-.farkles-label {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  color: var(--muted);
-}
-.dots {
-  display: flex;
-  gap: 4px;
-}
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #eadfd7;
-}
-.dot.on {
-  background: var(--accent);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -1.2px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
 
 .tray {
