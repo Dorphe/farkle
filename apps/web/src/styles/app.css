@@ -273,11 +273,13 @@ p {
   border: 1px solid transparent;
   border-radius: var(--r-pill);
   background: var(--field);
-  font-size: 13px;
+  /* 16px prevents iOS Safari from zooming the page on focus */
+  font-size: 16px;
   font-weight: 500;
   color: var(--ink);
 }
 .add-row input::placeholder {
+  font-size: 13px;
   color: var(--faint);
 }
 .btn-add {
@@ -1185,7 +1187,8 @@ p {
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
   background: var(--card);
-  font-size: 11px;
+  /* 16px prevents iOS Safari from zooming the page on focus */
+  font-size: 16px;
   font-weight: 700;
   text-align: center;
   font-variant-numeric: tabular-nums;
