@@ -55,7 +55,7 @@ export function ScoreSetupScreen() {
   const presetName = detectPreset(draftConfig);
 
   return (
-    <section className="screen setup-screen" aria-labelledby="score-setup-title">
+    <section className="screen setup-screen" aria-label="Keep score">
       <header className="topbar">
         <span className="wordmark">Farkle</span>
         <button type="button" className="pill" onClick={() => navigate("/rules")}>
@@ -76,18 +76,6 @@ export function ScoreSetupScreen() {
       </div>
 
       <div className="setup-scroll">
-        <div className="hero">
-          <h1 id="score-setup-title">
-            Real dice.
-            <span>One keeper.</span>
-          </h1>
-        </div>
-
-        <p className="intro">
-          Roll at the table, then tap in the turn total. No arithmetic, no arguments — corrections recompute
-          everything after them.
-        </p>
-
         <div className="rules-strip" aria-label="Scorekeeping at a glance">
           <div className="tile">
             <b>2–8</b>

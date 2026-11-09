@@ -121,6 +121,7 @@ p {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  padding-top: 12px;
   padding-bottom: 6px;
   scrollbar-width: thin;
   scrollbar-color: #ddd0c7 transparent;
@@ -137,30 +138,6 @@ p {
 .setup-scroll::-webkit-scrollbar-track,
 .rules-screen::-webkit-scrollbar-track {
   background: transparent;
-}
-.hero {
-  flex: none;
-  padding-top: 24px;
-}
-.hero h1 {
-  font-size: 40px;
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -1.6px;
-  color: var(--ink);
-}
-.hero h1 span {
-  display: block;
-  color: var(--accent);
-}
-.intro {
-  flex: none;
-  padding-top: 12px;
-  padding-right: 4px;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--body);
 }
 .rules-strip {
   flex: none;

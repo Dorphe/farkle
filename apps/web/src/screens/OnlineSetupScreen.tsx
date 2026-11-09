@@ -68,7 +68,7 @@ export function OnlineSetupScreen() {
   }
 
   return (
-    <section className="screen setup-screen" aria-labelledby="online-setup-title">
+    <section className="screen setup-screen" aria-label="Play with friends">
       <header className="topbar">
         <span className="wordmark">Farkle</span>
         <button type="button" className="pill" onClick={() => navigate("/rules")}>
@@ -89,18 +89,6 @@ export function OnlineSetupScreen() {
       </div>
 
       <div className="setup-scroll">
-        <div className="hero">
-          <h1 id="online-setup-title">
-            Same table.
-            <span>Anywhere.</span>
-          </h1>
-        </div>
-
-        <p className="intro">
-          Start a room, share the four-letter code, and everyone rolls from their own phone. Rooms are
-          temporary — there is nothing to sign up for.
-        </p>
-
         {!configured ? (
           <p className="notice-card" role="alert">
             Online play needs a room server. This build has no server address configured.

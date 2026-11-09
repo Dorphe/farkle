@@ -69,7 +69,7 @@ export function SetupScreen() {
   const scoreCurrent = scorepad?.players.find((player) => player.id === scoreView?.currentPlayerId);
 
   return (
-    <section className="screen setup-screen" aria-labelledby="setup-title">
+    <section className="screen setup-screen" aria-label="Play dice">
       <header className="topbar">
         <span className="wordmark">Farkle</span>
         <button type="button" className="pill" onClick={() => navigate("/rules")}>
@@ -124,20 +124,6 @@ export function SetupScreen() {
             </span>
             <span className="resume-cta">Continue</span>
           </button>
-        ) : null}
-
-        <div className="hero">
-          <h1 id="setup-title">
-            Roll. Risk it.
-            <span>Bank it.</span>
-          </h1>
-        </div>
-
-        {!gameActive && !scoreActive ? (
-          <p className="intro">
-            Six dice, one table, no turns hidden. Keep the scoring dice, push your luck on the rest — or bank
-            what you&apos;ve got before a farkle takes it all.
-          </p>
         ) : null}
 
         <div className="rules-strip" aria-label="Game rules at a glance">
