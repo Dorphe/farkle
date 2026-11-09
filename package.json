@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "pnpm --filter @farkle/web dev",
     "build": "pnpm -r build",
-    "test": "pnpm --filter @farkle/engine test",
-    "typecheck": "pnpm -r typecheck"
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "dev:server": "pnpm --filter @farkle/server dev",
+    "dev:all": "pnpm --filter @farkle/server --filter @farkle/web --parallel dev"
   },
   "pnpm": {
     "onlyBuiltDependencies": ["esbuild"]

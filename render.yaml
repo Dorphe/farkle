@@ -1,0 +1,23 @@
+# Render Blueprint for the ephemeral room server.
+#
+# Dashboard -> New -> Blueprint -> connect this repository -> Apply.
+# The service is free and needs no card. It sleeps after 15 minutes without
+# HTTP or WebSocket traffic; live rooms keep it awake via the client's 20 s
+# ping, which is compatible with the rooms being ephemeral anyway.
+services:
+  - type: web
+    name: farkle-online
+    runtime: node
+    plan: free
+    region: ohio
+    numInstances: 1
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm --filter @farkle/server start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: ALLOWED_ORIGINS
+        value: https://farkle.mathieu.cc
+      - key: MAX_ROOMS
+        value: "500"

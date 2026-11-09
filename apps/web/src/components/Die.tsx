@@ -23,11 +23,13 @@ export function DieButton({
   index,
   selected,
   onToggle,
+  disabled = false,
 }: {
   face: number;
   index: number;
   selected: boolean;
   onToggle: (index: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -37,6 +39,7 @@ export function DieButton({
       aria-pressed={selected}
       aria-label={`Die ${index + 1}, value ${face}${selected ? ", kept" : ""}`}
       onClick={() => onToggle(index)}
+      disabled={disabled}
       style={{ animationDelay: `${index * 40}ms` }}
     >
       <Pips face={face} />

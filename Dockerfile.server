@@ -1,0 +1,38 @@
+# Room server image. Build from the repository root:
+#   docker build -f Dockerfile.server -t farkle-server .
+#
+# The server is in-memory and single-process. Do not run more than one
+# machine/instance behind a load balancer: each instance would have its own
+# rooms and codes.
+FROM node:22-alpine
+
+ENV NODE_ENV=production
+
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
+
+WORKDIR /app
+
+# Workspace manifests first, so dependency installation is cached.
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY apps/server/package.json apps/server/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/dice/package.json packages/dice/package.json
+COPY packages/engine/package.json packages/engine/package.json
+COPY packages/protocol/package.json packages/protocol/package.json
+
+RUN pnpm install --frozen-lockfile --filter @farkle/server...
+
+COPY tsconfig.base.json ./
+COPY packages/engine packages/engine
+COPY packages/protocol packages/protocol
+COPY apps/server apps/server
+
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 8787
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${PORT:-8787}/health" >/dev/null 2>&1 || exit 1
+
+CMD ["pnpm", "--filter", "@farkle/server", "start"]

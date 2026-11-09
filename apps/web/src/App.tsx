@@ -9,6 +9,8 @@ import { HistoryScreen } from "@/screens/HistoryScreen.tsx";
 import { ScoreSetupScreen } from "@/screens/ScoreSetupScreen.tsx";
 import { ScoreGameScreen } from "@/screens/ScoreGameScreen.tsx";
 import { ScoreBoardScreen } from "@/screens/ScoreBoardScreen.tsx";
+import { OnlineSetupScreen } from "@/screens/OnlineSetupScreen.tsx";
+import { JoinRoomScreen } from "@/screens/JoinRoomScreen.tsx";
 import { UpdatePrompt } from "@/components/UpdatePrompt.tsx";
 
 export default function App() {
@@ -43,6 +45,8 @@ export default function App() {
         <Route path="/score/setup" element={<ScoreSetupScreen />} />
         <Route path="/score/game" element={<ScoreGameScreen />} />
         <Route path="/score/board" element={<ScoreBoardScreen />} />
+        <Route path="/online" element={<OnlineSetupScreen />} />
+        <Route path="/join/:code" element={<JoinRoomScreen />} />
         <Route path="/rules" element={<RulesScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/history" element={<HistoryScreen />} />

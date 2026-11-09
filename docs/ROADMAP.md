@@ -169,12 +169,12 @@ M3 does not depend on M1 or M2. Build it after M0's protocol is frozen, either b
 
 - `apps/server`: Fastify + WebSocket, room manager, guest identity, signed reconnect tokens.
 - Server-side CSPRNG rolls, reducer-driven scoring, action validation, idempotency, rate limits.
-- Protocol: welcome, state, presence, error, ping/pong; monotonic `seq`; full-state snapshots.
+- Protocol: create/hello, welcome, state, error, ping/pong; monotonic `seq`; full `RoomView` snapshots with presence folded into seats.
 - Client: create/join, lobby, ready, presence, reconnect banner, read-only board for non-current players.
-- Dice presentation: choreographed roll that lands on server values; 2D fallback.
-- Host controls: start, skip, end; host transfer.
-- Room lifecycle: 6-character codes, 2 h idle TTL, 10 min empty TTL, 24 h code reuse block.
-- SQLite snapshots for restart recovery.
+- Dice presentation: 2D dice land on server values (M3 start); choreographed 3D presentation and 2D fallback remain follow-up work.
+- Host controls: start and host transfer; skip/end are follow-up.
+- Room lifecycle: 4-character codes, in-memory ephemeral rooms, 2 h idle TTL, 10 min empty TTL.
+- No server snapshots in v1: a restart ends live rooms.
 - Integration tests with two clients; forged-action tests; 100-room load test.
 
 **Deliverables**

@@ -5,11 +5,15 @@ export function WinnerScreen({
   onRematch,
   onScoreboard,
   onShare,
+  canRematch = true,
+  rematchHint,
 }: {
   game: DiceGameState;
   onRematch: () => void;
   onScoreboard: () => void;
   onShare: () => void;
+  canRematch?: boolean;
+  rematchHint?: string;
 }) {
   const winner = game.players.find((player) => player.id === game.winnerId) ?? game.players[0];
   if (!winner) return null;
@@ -43,9 +47,13 @@ export function WinnerScreen({
         </button>
       </div>
       <div className="winner-actions">
-        <button type="button" className="btn-primary" autoFocus onClick={onRematch}>
-          Play again
-        </button>
+        {canRematch ? (
+          <button type="button" className="btn-primary" autoFocus onClick={onRematch}>
+            Play again
+          </button>
+        ) : (
+          <p className="winner-wait">{rematchHint ?? "Waiting for the host to start a rematch…"}</p>
+        )}
         <button type="button" className="btn-secondary" onClick={onScoreboard}>
           Scoreboard
         </button>

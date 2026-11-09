@@ -11,6 +11,8 @@ const PRESET_LABELS: Record<PresetName | "custom", string> = {
   custom: "Custom",
 };
 
+export { PRESET_LABELS };
+
 export function avatarColor(index: number): string {
   return `var(--avatar-${(index % 6) + 1})`;
 }
@@ -81,6 +83,9 @@ export function SetupScreen() {
         </button>
         <button type="button" aria-pressed="false" onClick={() => navigate("/score/setup")}>
           Keep score
+        </button>
+        <button type="button" aria-pressed="false" onClick={() => navigate("/online")}>
+          With friends
         </button>
       </div>
 

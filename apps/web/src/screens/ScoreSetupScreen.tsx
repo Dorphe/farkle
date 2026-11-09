@@ -70,6 +70,9 @@ export function ScoreSetupScreen() {
         <button type="button" aria-pressed="true">
           Keep score
         </button>
+        <button type="button" aria-pressed="false" onClick={() => navigate("/online")}>
+          With friends
+        </button>
       </div>
 
       <div className="setup-scroll">

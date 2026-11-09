@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@farkle/engine": "workspace:*",
     "zod": "^3.25.76"
   },
   "devDependencies": {

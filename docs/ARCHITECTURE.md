@@ -56,7 +56,7 @@ React is not chosen because a dice game needs React. It is chosen because the pr
 | Engine | TypeScript, zero runtime dependencies | Pure, testable, shared by client and server |
 | Dice | three.js + cannon-es, imperative adapter, lazy chunk | Preserve the physics feel; keep it out of React renders |
 | Server | Node 22 LTS, Fastify, `@fastify/websocket`, Zod, pino | Small operational surface; typed validation |
-| Server state | In-memory rooms + SQLite snapshots (`better-sqlite3`) | Turn-based rooms are tiny; snapshots survive restarts |
+| Server state | In-memory rooms, no snapshots (ephemeral by design) | Turn-based rooms are tiny; a restart ends live rooms, which is the agreed v1 lifecycle |
 | Web hosting | GitHub Pages or Netlify (static) | Already static; cheap and fast |
 | Server hosting | Fly.io, single region, one machine | Simple, affordable, easy rollback |
 | Tests | Vitest, Testing Library, Playwright, fast-check, axe | Unit → component → E2E → property → a11y |
@@ -84,10 +84,9 @@ farkle/
 │  │  │  └─ styles/        # tokens.css, base.css, component CSS
 │  │  └─ public/
 │  └─ server/              # Fastify + WebSocket room service
-│     ├─ src/
-│     │  ├─ rooms/         # lifecycle, seats, host, TTL
-│     │  ├─ transport/     # ws protocol, validation, rate limits
-│     │  └─ persistence/   # SQLite snapshots
+│     └─ src/
+│        ├─ rooms/          # (rooms.ts) lifecycle, seats, host, codes, TTL
+│        └─ index.ts        # ws transport, validation, rate limits, health
 ├─ packages/
 │  ├─ engine/              # pure rules + dice-game + scorepad reducers
 │  ├─ protocol/            # Zod schemas, message types, shared constants
@@ -248,7 +247,7 @@ This is the most consequential technical choice in Online.
 | Server values, client re-rolls until match | Good | Fine | Unbounded, unacceptable |
 | **Server values, choreographed presentation** | Good | Strong | Medium |
 
-**Decision:** server-authoritative values with a **presentation roll** that is choreographed to land on them. Local keeps true physics. Online dice are "choreographed, not simulated"; the tradeoff is documented and tested with players.
+**Decision:** server-authoritative values with a **presentation roll** that is choreographed to land on them. Local keeps true physics. Online dice are "choreographed, not simulated"; the tradeoff is documented and tested with players. The M3-start build uses 2D dice that reveal the server values; the choreographed 3D presentation remains follow-up work.
 
 ### Presentation algorithm
 
@@ -292,19 +291,24 @@ The 2D fallback implements the same interface with DOM dice, so the rest of the 
 
 ```ts
 // client → server
-{ t: "hello", v: 1, room: "7KQ2M9", token?: string, name?: string }
+{ t: "create", v: 2, name: "Ana", config }
+{ t: "hello", v: 2, room: "5T1S", token?: string, name?: string }
 { t: "ready", ready: true }
 { t: "start" }
-{ t: "action", id: "a_8f2", action: DiceGameAction }
+{ t: "action", id: "a_8f2", action: { type: "roll" } }
+{ t: "leave" }
 { t: "ping", ts: 1730000000000 }
 
 // server → client
-{ t: "welcome", playerId, token, seat, state, seq }
-{ t: "state", seq, state, lastEvent? }
-{ t: "presence", players: [{ id, connected, away }] }
-{ t: "error", code: "NOT_YOUR_TURN" | "INVALID_SELECTION" | ..., message }
+{ t: "welcome", playerId, token, room, seq }
+{ t: "state", seq, state }      // state is the full RoomView
+{ t: "error", code: "NOT_YOUR_TURN" | "INVALID_ACTION" | ..., message }
 { t: "pong", ts }
 ```
+
+`RoomView` carries the room phase (`lobby | playing | finished`), seats with
+`ready`/`connected`/`host`, the config, and the full engine state. Presence is
+folded into the seat list; the seq bumps when it changes.
 
 ### Rules
 
@@ -312,8 +316,8 @@ The 2D fallback implements the same interface with DOM dice, so the rest of the 
 - **Monotonic `seq` per room.** Clients discard any state with `seq` lower than the last applied.
 - **Idempotency.** Every action carries a client-generated `id`; the server remembers the last 50 ids per player and returns the current state for duplicates.
 - **Validation.** Every action is parsed with Zod, then checked against the engine (turn ownership, phase, selection legality). The server computes scores; it never accepts a score from the client.
-- **Presence is separate.** Connection state changes do not bump the game `seq`; they are a separate message so a flaky socket doesn't spam the board.
-- **Log cap.** The state includes the last 50 events for the recap; the full log is stored server-side for audit/replay.
+- **Presence rides in the seats.** A connection change bumps `seq` and broadcasts the full room with updated `connected` flags, so a dropped player is visible everywhere without a second message type.
+- **Log cap.** Engine state carries only `lastEvent`; rooms are ephemeral, so no full action log is persisted.
 
 ### Roll sequence
 
@@ -339,10 +343,10 @@ Roller              Server                         Others
 
 ### Guest identity
 
-- On first visit, the client generates `playerId = crypto.randomUUID()` and stores it in IndexedDB.
-- On join, the server issues `token = HMAC-SHA256(playerId | roomId | exp, serverSecret)`.
-- Reconnect sends the token; the server verifies and restores the seat.
-- Clearing site data loses the seat; the host can free it after the 5-minute hold. Guest identity is the default and never requires an account.
+- On first visit, the client stores a display name; no account is created.
+- On join, the server issues `token = randomBytes(24)` and keeps it with the seat in memory.
+- Reconnect sends the token; the server verifies it against the seat and restores presence.
+- Clearing site data loses the seat; in the lobby a dropped seat is pruned after 2 minutes. Guest identity is the default and never requires an account.
 
 ### Accounts (optional)
 
@@ -359,21 +363,20 @@ Signing in adds continuity across devices, not a gate. It is deliberately minima
 
 ```ts
 type Room = {
-  id: string;            // 6 chars, Crockford base32 (no I/O/0/1)
+  code: string;          // 4 chars, A–Z / 0–9, e.g. 5T1S
   hostId: string;
   createdAt: number;
   lastActivity: number;
-  seats: Seat[];         // max 6
-  state: DiceGameState;  // authoritative
+  seats: Seat[];         // max 6, creation order = turn order
+  state: DiceGameState;  // authoritative, null in the lobby
   seq: number;
-  timer?: { deadline: number; handle: NodeJS.Timeout };
 };
 ```
 
-- Codes use a 32-character alphabet, 30 bits of entropy. Combined with per-IP join limits, guessing is impractical.
-- Host is the first joiner; on disconnect, host transfers to the next connected player after 30 s.
-- Idle rooms expire after 2 h; empty rooms after 10 min; codes are blocked from reuse for 24 h.
-- A room with an active game is never silently deleted; it is snapshotted and can be restored after a deploy.
+- Codes use a 32-character alphabet without 0/O/1/I in four positions (~1.05M combinations). Combined with per-IP create limits, guessing is impractical.
+- Host is the creator; on disconnect the badge passes to the next connected player.
+- Idle rooms expire after 2 h; empty rooms after 10 min. Lobby seats left behind by a dropout are pruned after 2 min.
+- Rooms live in memory only. A server restart ends every live room; there are no snapshots and no code-reuse block in v1.
 
 ### Turn timer
 
@@ -401,12 +404,12 @@ DB: farkle
 - Completed games keep the full action log for recap/export; cap at 100 records.
 - Migration: read `farkle.prototype.v1` from `localStorage` once, import the game, keep the old key for 30 days, then delete it.
 
-### Server (SQLite)
+### Server (in-memory)
 
-- One `rooms` table with `id`, `state_json`, `log_json`, `seq`, `updated_at`, `expires_at`.
-- Snapshot on every state change, debounced to at most one write per 2 s per room (WAL mode).
-- On boot, load unexpired rooms into memory.
-- No names or PII beyond display names; rooms are deleted at expiry. Logs retain room IDs, not names.
+- Rooms live in a single `Map`; there is no database and no snapshot file.
+- The room list, seats, and game state are lost on restart. Clients reconnecting to a restarted server receive `ROOM_NOT_FOUND`.
+- No names or PII are written to disk. Logs keep room codes, not display names.
+- The tradeoff is deliberate for v1: ephemeral rooms keep operations to one process and make the "rooms disappear" promise literal. Snapshot recovery remains a later option if live rooms need to survive deploys.
 
 ### Export
 
@@ -499,10 +502,10 @@ Rollback is a flag flip, not a redeploy. The old build and the old storage key r
 | --- | --- | --- |
 | **001** | Re-platform to React + TypeScript; redesign the visual system; port dice physics and scoring | Moderate rewrite cost; design handoff and behavior regression; new design owned by the product designer |
 | **002** | One scoring core, two turn reducers | No dead states in Scorekeeping; parity tests required across modes |
-| **003** | Server-authoritative Online; choreographed dice presentation | Cheat-resistant and replayable; online dice are not true physics |
-| **004** | Guest identity with signed reconnect tokens | Accounts are optional; clearing storage loses the seat; host reclaim flow |
+| **003** | Server-authoritative Online; 2D dice reveal server values (choreographed 3D deferred) | Cheat-resistant and replayable; online dice are not true physics yet |
+| **004** | Guest identity with private reconnect tokens | Accounts are optional; clearing storage loses the seat; host reclaim flow |
 | **005** | Full-state broadcast, not deltas | Simple, robust reconnect; bandwidth is trivial at turn-based pace |
-| **006** | IndexedDB locally, SQLite snapshots on the server | Durable history and restart recovery; one native module to operate |
+| **006** | IndexedDB locally, in-memory rooms on the server | Durable local history; online rooms are explicitly ephemeral and vanish on restart |
 | **007** | Optional magic-link accounts | Cross-device continuity without passwords; adds email delivery and token lifecycle to operate |
 
 ---

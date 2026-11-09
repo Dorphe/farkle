@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.github
+assets
+icons
+docs
+apps/web/src
+apps/web/public
+farkle-design.pen
+*.pen
+sw.js
+workbox-*.js

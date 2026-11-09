@@ -270,7 +270,7 @@ Rules are locked when an Online game starts. Local and Scorekeeping rules can be
 
 | ID | Requirement | Pri | Acceptance criteria |
 | --- | --- | --- | --- |
-| ONL-01 | Create room | P0 | Host sets rules, max players (2–6), and optional turn timer; the room gets a 6-character code and an invite link. |
+| ONL-01 | Create room | P0 | Host sets rules, max players (2–6), and optional turn timer; the room gets a 4-character code and an invite link. |
 | ONL-02 | Join | P0 | A link or code opens the room; a guest enters a name and taps Ready; invalid, expired, or full codes show a clear message and a path back. |
 | ONL-03 | Lobby | P0 | All players, host badge, rules summary, and ready states are visible; the host can start with ≥2 ready players. |
 | ONL-04 | Authority | P0 | The server generates every roll and computes every score; a forged client roll or score is rejected and cannot change state. |
