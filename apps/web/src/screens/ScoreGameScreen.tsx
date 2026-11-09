@@ -8,6 +8,7 @@ import {
 } from "@farkle/engine";
 import { useSession } from "@/store/session.ts";
 import { avatarColor } from "@/screens/SetupScreen.tsx";
+import { GameMenu } from "@/components/GameMenu.tsx";
 import { playCue, haptic } from "@/lib/audio.ts";
 import { track } from "@/lib/analytics.ts";
 import { shareSummary } from "@/lib/share.ts";
@@ -38,6 +39,7 @@ export function ScoreGameScreen() {
   const [correctionValue, setCorrectionValue] = useState("");
   const [correctionKind, setCorrectionKind] = useState<"score" | "farkle">("score");
   const [toast, setToast] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const turnStarted = useRef(performance.now());
 
   const view = useMemo(() => (scorepad ? deriveScorepad(scorepad) : null), [scorepad]);
@@ -180,6 +182,9 @@ export function ScoreGameScreen() {
           <button type="button" className="pill" onClick={() => navigate("/rules")}>
             Rules
           </button>
+          <button type="button" className="pill" onClick={() => setMenuOpen(true)}>
+            Menu
+          </button>
         </div>
       </header>
 
@@ -302,6 +307,31 @@ export function ScoreGameScreen() {
           onCorrect={openCorrection}
           onEnd={endGame}
           onClose={() => setLedgerOpen(false)}
+        />
+      ) : null}
+
+      {menuOpen ? (
+        <GameMenu
+          mode="score"
+          onClose={() => setMenuOpen(false)}
+          onLeave={() => {
+            if (window.confirm("Leave the table? This scorepad stays saved for resume.")) {
+              setMenuOpen(false);
+              navigate("/", { state: { fromLeave: true } });
+            }
+          }}
+          onNewGame={() => {
+            setMenuOpen(false);
+            endGame();
+          }}
+          onHistory={() => {
+            setMenuOpen(false);
+            navigate("/history");
+          }}
+          onSettings={() => {
+            setMenuOpen(false);
+            navigate("/settings");
+          }}
         />
       ) : null}
 

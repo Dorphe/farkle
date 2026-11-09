@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { deriveScorepad, detectPreset, type PresetName } from "@farkle/engine";
 import { useSession } from "@/store/session.ts";
 import { RulesSheet } from "@/components/RulesSheet.tsx";
@@ -17,6 +17,7 @@ export function avatarColor(index: number): string {
 
 export function SetupScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const game = useSession((state) => state.game);
   const scorepad = useSession((state) => state.scorepad);
   const roster = useSession((state) => state.roster);
@@ -30,12 +31,16 @@ export function SetupScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
 
+  const scoreView = scorepad ? deriveScorepad(scorepad) : null;
+  const gameActive = Boolean(game && game.phase !== "gameOver");
+  const scoreActive = Boolean(scoreView && scoreView.phase !== "gameOver");
+  const fromLeave = Boolean((location.state as { fromLeave?: boolean } | null)?.fromLeave);
+
   useEffect(() => {
-    if (game && game.phase !== "gameOver") navigate("/local/game", { replace: true });
-    else if (scorepad && deriveScorepad(scorepad).phase !== "gameOver") {
-      navigate("/score/game", { replace: true });
-    }
-  }, [game, scorepad, navigate]);
+    if (fromLeave) return;
+    if (gameActive) navigate("/local/game", { replace: true });
+    else if (scoreActive) navigate("/score/game", { replace: true });
+  }, [gameActive, scoreActive, fromLeave, navigate]);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -50,11 +55,16 @@ export function SetupScreen() {
 
   function start() {
     if (roster.length < 2) return;
+    if ((gameActive || scoreActive) && !window.confirm("Start a new dice game? The saved game will be closed.")) {
+      return;
+    }
     startGame(draftConfig);
     navigate("/local/game");
   }
 
   const presetName = detectPreset(draftConfig);
+  const gamePlayer = game ? game.players[game.turn] : undefined;
+  const scoreCurrent = scorepad?.players.find((player) => player.id === scoreView?.currentPlayerId);
 
   return (
     <section className="screen setup-screen" aria-labelledby="setup-title">
@@ -75,6 +85,42 @@ export function SetupScreen() {
       </div>
 
       <div className="setup-scroll">
+        {gameActive && game ? (
+          <button
+            type="button"
+            className="resume-card"
+            onClick={() => navigate("/local/game")}
+          >
+            <span className="resume-body">
+              <span className="resume-kicker">RESUME</span>
+              <span className="resume-title">Dice game</span>
+              <span className="resume-meta">
+                {gamePlayer?.name ?? "Player"} · {game.players.length} players · turn{" "}
+                {(gamePlayer?.turns ?? 0) + 1}
+              </span>
+            </span>
+            <span className="resume-cta">Continue</span>
+          </button>
+        ) : null}
+
+        {scoreActive && scorepad && scoreView ? (
+          <button
+            type="button"
+            className="resume-card"
+            onClick={() => navigate("/score/game")}
+          >
+            <span className="resume-body">
+              <span className="resume-kicker">RESUME</span>
+              <span className="resume-title">Scorepad</span>
+              <span className="resume-meta">
+                {scoreCurrent?.name ?? "Player"} · {scorepad.players.length} players ·{" "}
+                {scorepad.config.target.toLocaleString("en-US")} to win
+              </span>
+            </span>
+            <span className="resume-cta">Continue</span>
+          </button>
+        ) : null}
+
         <div className="hero">
           <h1 id="setup-title">
             Roll. Risk it.
@@ -82,10 +128,12 @@ export function SetupScreen() {
           </h1>
         </div>
 
-        <p className="intro">
-          Six dice, one table, no turns hidden. Keep the scoring dice, push your luck on the rest — or bank
-          what you&apos;ve got before a farkle takes it all.
-        </p>
+        {!gameActive && !scoreActive ? (
+          <p className="intro">
+            Six dice, one table, no turns hidden. Keep the scoring dice, push your luck on the rest — or bank
+            what you&apos;ve got before a farkle takes it all.
+          </p>
+        ) : null}
 
         <div className="rules-strip" aria-label="Game rules at a glance">
           <div className="tile">

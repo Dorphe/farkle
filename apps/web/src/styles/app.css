@@ -1541,6 +1541,94 @@ p {
   box-shadow: 0 1px 2px rgba(43, 34, 32, 0.08);
 }
 
+/* ---------- resume + game menu ---------- */
+.resume-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 13px 14px;
+  border: 0;
+  border-radius: var(--r-tile);
+  background: var(--accent-wash);
+  text-align: left;
+  cursor: pointer;
+}
+.resume-kicker {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--accent-deep);
+}
+.resume-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.resume-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+.resume-meta {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--accent-deep);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.resume-cta {
+  flex: none;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent-deep);
+}
+.menu-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px;
+  background: var(--card);
+  border-radius: var(--r-tile);
+}
+.menu-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  min-height: 56px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-row:last-child {
+  border-bottom: 0;
+}
+.menu-row b {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.menu-row span {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.menu-row.danger b,
+.menu-row.danger span {
+  color: var(--accent-deep);
+}
+.menu-sheet {
+  max-height: 80%;
+}
+
 /* ---------- scorepad ---------- */
 .score-screen {
   overflow: hidden;

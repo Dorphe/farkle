@@ -15,6 +15,7 @@ import { DieButton, GhostDice } from "@/components/Die.tsx";
 import { FarkleOverlay } from "@/components/FarkleOverlay.tsx";
 import { WinnerScreen } from "@/components/WinnerScreen.tsx";
 import { ScoreboardSheet } from "@/components/ScoreboardSheet.tsx";
+import { GameMenu } from "@/components/GameMenu.tsx";
 import { playCue, haptic } from "@/lib/audio.ts";
 import { shareSummary } from "@/lib/share.ts";
 import { avatarColor } from "@/screens/SetupScreen.tsx";
@@ -51,6 +52,7 @@ export function GameScreen() {
   const undo = useSession((state) => state.undo);
   const undoBank = useSession((state) => state.undoBank);
   const rematch = useSession((state) => state.rematch);
+  const endGame = useSession((state) => state.endGame);
   const setSettings = useSession((state) => state.setSettings);
   const error = useSession((state) => state.error);
   const clearError = useSession((state) => state.clearError);
@@ -59,6 +61,7 @@ export function GameScreen() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [boardOpen, setBoardOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [motionReady, setMotionReady] = useState(false);
 
   const tableHostRef = useRef<HTMLDivElement>(null);
@@ -380,6 +383,9 @@ export function GameScreen() {
           <button type="button" className="pill" onClick={() => navigate("/rules")}>
             Rules
           </button>
+          <button type="button" className="pill" onClick={() => setMenuOpen(true)}>
+            Menu
+          </button>
         </div>
       </header>
 
@@ -555,6 +561,34 @@ export function GameScreen() {
           players={game.players}
           winnerId={game.winnerId}
           onClose={() => setBoardOpen(false)}
+        />
+      ) : null}
+
+      {menuOpen ? (
+        <GameMenu
+          mode="local"
+          onClose={() => setMenuOpen(false)}
+          onLeave={() => {
+            if (window.confirm("Leave the table? This game stays saved for resume.")) {
+              setMenuOpen(false);
+              navigate("/", { state: { fromLeave: true } });
+            }
+          }}
+          onNewGame={() => {
+            if (window.confirm("Start a new game? Current scores will be lost.")) {
+              setMenuOpen(false);
+              endGame();
+              navigate("/");
+            }
+          }}
+          onHistory={() => {
+            setMenuOpen(false);
+            navigate("/history");
+          }}
+          onSettings={() => {
+            setMenuOpen(false);
+            navigate("/settings");
+          }}
         />
       ) : null}
     </section>

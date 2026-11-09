@@ -15,6 +15,7 @@ const PRESET_LABELS: Record<PresetName | "custom", string> = {
 export function ScoreSetupScreen() {
   const navigate = useNavigate();
   const scorepad = useSession((state) => state.scorepad);
+  const game = useSession((state) => state.game);
   const scoreRoster = useSession((state) => state.scoreRoster);
   const addScorePlayer = useSession((state) => state.addScorePlayer);
   const removeScorePlayer = useSession((state) => state.removeScorePlayer);
@@ -45,6 +46,8 @@ export function ScoreSetupScreen() {
 
   function start() {
     if (scoreRoster.length < 2) return;
+    const active = (game && game.phase !== "gameOver") || (scorepad && deriveScorepad(scorepad).phase !== "gameOver");
+    if (active && !window.confirm("Start a new scorepad? The saved game will be closed.")) return;
     startScoreGame(draftConfig);
     navigate("/score/game");
   }

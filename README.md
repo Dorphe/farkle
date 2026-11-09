@@ -35,6 +35,7 @@ packages/protocol wire schemas for Online (frozen skeleton, no server yet)
 - Keyboard: `R` roll, `B` bank, `1`–`6` toggle dice, `Esc` close dialogs. Screen readers get die names, turn changes, and results through live regions.
 - Shake-to-roll (opt-in, motion permission requested on tap), sound and haptics with toggles, reduced-motion mode.
 - Settings, history with read-only recaps, native share with a generated PNG scorecard, and a 5-second undo-bank snackbar.
+- A table menu in both modes to leave (saved for resume), start a new game, or jump to History/Settings; setup shows a Resume card for an in-progress game.
 - PWA: installable manifest, self-hosted font, offline app shell and dice chunk, update prompt that never reloads a game by itself.
 
 Scoring:
