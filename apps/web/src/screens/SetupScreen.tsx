@@ -126,21 +126,6 @@ export function SetupScreen() {
           </button>
         ) : null}
 
-        <div className="rules-strip" aria-label="Game rules at a glance">
-          <div className="tile">
-            <b>6</b>
-            <span>DICE</span>
-          </div>
-          <div className="tile">
-            <b>10K</b>
-            <span>TO WIN</span>
-          </div>
-          <div className="tile">
-            <b>3</b>
-            <span>FARKLES · −1K</span>
-          </div>
-        </div>
-
         <div className="roster-wrap">
           <div className="roster-card">
             <h2 className="roster-heading">PLAYERS</h2>

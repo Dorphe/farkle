@@ -76,21 +76,6 @@ export function ScoreSetupScreen() {
       </div>
 
       <div className="setup-scroll">
-        <div className="rules-strip" aria-label="Scorekeeping at a glance">
-          <div className="tile">
-            <b>2–8</b>
-            <span>PLAYERS</span>
-          </div>
-          <div className="tile">
-            <b>4</b>
-            <span>TAPS A TURN</span>
-          </div>
-          <div className="tile">
-            <b>1</b>
-            <span>TAP FARKLE</span>
-          </div>
-        </div>
-
         <div className="roster-wrap">
           <div className="roster-card">
             <h2 className="roster-heading">PLAYERS</h2>
