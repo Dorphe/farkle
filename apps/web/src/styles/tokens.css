@@ -1,0 +1,47 @@
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("../assets/fonts/plus-jakarta-sans.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Soft Clay — the selected theme in farkle-design.pen */
+  --bg-top: #faf5f0;
+  --bg-bottom: #ece1d8;
+  --ink: #2b2220;
+  --body: #4a403b;
+  --muted: #6e625c; /* contrast-safe adjustment of the pen's #8B7F79 */
+  --muted-soft: #8b7f79;
+  --faint: #b09f97;
+
+  --card: #ffffff;
+  --line: #f0e5de;
+  --line-soft: #f3eae4;
+  --field: #fbf6f2;
+
+  --accent: #d4715b;
+  --accent-strong: #b2523c; /* interactive fill; keeps white text at AA */
+  --accent-ink: #fff8f5;
+  --accent-wash: #fbe4da;
+  --accent-deep: #a34f3a;
+
+  --night: #2b2220;
+  --night-soft: #d8c9c2;
+  --night-kicker: #a08f88;
+  --night-accent: #e98a70;
+
+  --avatar-1: #f7c9a9;
+  --avatar-2: #b9dcc1;
+  --avatar-3: #f3b7c3;
+  --avatar-4: #c9c2e8;
+  --avatar-5: #f6e2a8;
+  --avatar-6: #bcd7ea;
+
+  --r-card: 26px;
+  --r-tile: 22px;
+  --r-pill: 999px;
+
+  --font: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}

@@ -1,8 +1,59 @@
 # Farkle
 
-A single-file, pass-and-play Farkle prototype, built for phone play. Open `index.html` in any browser — no build step. Fonts come from Google Fonts and the 3D table pulls three.js + cannon-es from jsDelivr; if either is unavailable the game falls back to the flat dice and system fonts.
+Two builds live in this repo during the M1 cutover:
 
-Play: <https://farkle.mathieu.cc/>
+- **`index.html`** — the classic single-file prototype. It is still the production build at <https://farkle.mathieu.cc/>; the rebuild is live beside it at <https://farkle.mathieu.cc/v2/> and the classic rollback path at <https://farkle.mathieu.cc/classic/>.
+- **`apps/web` + `packages/*`** — the rebuild: React 19 + TypeScript, the Soft Clay design from `farkle-design.pen`, the 3D dice table ported from the prototype, and the rules extracted into a pure engine.
+
+## The rebuild
+
+```bash
+pnpm install
+pnpm dev        # http://localhost:5173
+pnpm test       # engine golden vectors + reducer tests
+pnpm build      # typecheck + production build
+```
+
+The layout follows [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md):
+
+```text
+apps/web          React SPA — setup, game, rules, settings, history, winner
+packages/engine   pure rules + dice-turn reducer + versioned records
+packages/dice     imperative three.js/cannon-es table, lazy-loaded
+packages/protocol wire schemas for Online (frozen skeleton, no server yet)
+```
+
+Implemented for Local: the five screens in the pen file, physics dice with a flat fallback, tap/keyboard selection, hot dice, farkle and penalty, entry threshold and complete-round variants, house-rule presets (Classic / Bar / Family / custom), resume through IndexedDB, migration of the prototype's `farkle.prototype.v1` save, keyboard shortcuts, shake-to-roll, sound/haptics, reduced-motion handling, a variant-aware rules screen, settings, history with read-only recaps, native share with a generated PNG scorecard, and a 5-second undo-bank snackbar.
+
+PWA: installable manifest, self-hosted font, offline app shell and dice chunk (Workbox), plus an update prompt that never reloads a game by itself.
+
+Remaining before the production cutover: the 20-game dogfood pass and visual-regression sign-off in the M1 gate, and flipping the production route to `/v2` while keeping `/classic` as the rollback. `apps/server` arrives in M3.
+
+Design tokens are in `apps/web/src/styles/tokens.css`. Two contrast-safe adjustments were made to the pen palette: interactive fills use `#B2523C` (white text at AA; the pen's `#D4715B` remains for display type and selected dice) and small muted text uses `#6E625C`.
+
+## Deploy
+
+GitHub Pages serves `main` from the repository root. The rebuild is built with `VITE_BASE=/v2/` and committed to `v2/`; the classic single file is copied to `classic/`, and the same shell is copied to the root `404.html` so deep links such as `/v2/local/game` boot the SPA instead of 404ing.
+
+```bash
+VITE_BASE=/v2/ pnpm --filter @farkle/web build
+rm -rf v2 && cp -R apps/web/dist v2
+mkdir -p classic && cp index.html classic/index.html
+cp apps/web/dist/index.html 404.html
+```
+
+No CI workflow is required; Pages rebuilds on push. Rollback is opening `/classic/` or reverting the commit.
+
+
+## Classic prototype (production until cutover)
+
+The single-file app still runs at <https://farkle.mathieu.cc/>. Open `index.html` in any browser — no build step. Fonts come from Google Fonts and the 3D table pulls three.js + cannon-es from jsDelivr; if either is unavailable the game falls back to the flat dice and system fonts.
+
+Docs:
+
+- [Product requirements](docs/PRD.md) — scope, rules, requirements, release gates
+- [Roadmap](docs/ROADMAP.md) — milestones and sequencing
+- [Architecture](docs/ARCHITECTURE.md) — re-platform decision, module boundaries, online design
 
 ## What works
 

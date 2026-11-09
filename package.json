@@ -1,0 +1,14 @@
+{
+  "name": "farkle",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "dev": "pnpm --filter @farkle/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @farkle/engine test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}
