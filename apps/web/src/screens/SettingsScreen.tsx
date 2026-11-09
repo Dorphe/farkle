@@ -166,15 +166,6 @@ export function SettingsScreen() {
       <div className="settings-card">
         <div className="settings-row">
           <span>
-            <span className="settings-label">Classic version</span>
-            <span className="settings-hint">The single-file build, kept as the rollback path.</span>
-          </span>
-          <a className="text-link" href="/classic/">
-            Open
-          </a>
-        </div>
-        <div className="settings-row">
-          <span>
             <span className="settings-label">Farkle</span>
             <span className="settings-hint">M1 · Local rebuild</span>
           </span>
