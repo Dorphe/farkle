@@ -1,17 +1,27 @@
 import { useNavigate } from "react-router-dom";
+import { deriveScorepad } from "@farkle/engine";
 import { useSession } from "@/store/session.ts";
 
 export function RulesScreen() {
   const navigate = useNavigate();
   const game = useSession((state) => state.game);
+  const scorepad = useSession((state) => state.scorepad);
   const draftConfig = useSession((state) => state.draftConfig);
   const endGame = useSession((state) => state.endGame);
 
-  const config = game?.config ?? draftConfig;
+  const config = game?.config ?? scorepad?.config ?? draftConfig;
   const target = config.target.toLocaleString("en-US");
 
   function close() {
-    navigate(game && game.phase !== "gameOver" ? "/local/game" : "/", { replace: true });
+    if (game && game.phase !== "gameOver") {
+      navigate("/local/game", { replace: true });
+      return;
+    }
+    if (scorepad && deriveScorepad(scorepad).phase !== "gameOver") {
+      navigate("/score/game", { replace: true });
+      return;
+    }
+    navigate("/", { replace: true });
   }
 
   return (

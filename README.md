@@ -29,6 +29,7 @@ packages/protocol wire schemas for Online (frozen skeleton, no server yet)
 - 2–6 players; add, name, and remove them before starting.
 - 3D physics dice with tap-to-keep; flat dice fall back automatically when WebGL is unavailable.
 - Full classic scoring, farkle detection, hot dice, three-farkle penalty, entry threshold.
+- **Scorekeeping (M2):** 2–8 players, a shared keypad, quick chips, a one-tap Farkle button, an append-only ledger with corrections, 10-level undo, finish-the-round and sudden death, and a full-screen table display with wake lock.
 - House rules: Classic / Bar / Family presets plus a custom target, entry threshold, straight value, three pairs, two triplets, hot dice, penalty, win condition (first to target or complete round), and first player.
 - Resume through IndexedDB, including migration of the old prototype's `farkle.prototype.v1` save.
 - Keyboard: `R` roll, `B` bank, `1`–`6` toggle dice, `Esc` close dialogs. Screen readers get die names, turn changes, and results through live regions.
@@ -73,4 +74,4 @@ Then commit and push. Pages rebuilds from `main`; `CNAME` keeps the custom domai
 - [Roadmap](docs/ROADMAP.md)
 - [Architecture](docs/ARCHITECTURE.md)
 
-Remaining for the M1 gate: the 20-game dogfood pass and visual sign-off. Scorekeeping starts in M2, Online in M3.
+Remaining for the M1 gate: the 20-game dogfood pass and visual sign-off. M2's engine and scorepad are in place; its release gate is 10 real table sessions, a correction on a disputed win, table-display wake lock, and the ≤15 s turn-entry target. Online starts in M3.

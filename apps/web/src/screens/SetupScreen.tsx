@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { detectPreset, type PresetName } from "@farkle/engine";
+import { deriveScorepad, detectPreset, type PresetName } from "@farkle/engine";
 import { useSession } from "@/store/session.ts";
 import { RulesSheet } from "@/components/RulesSheet.tsx";
 
@@ -18,6 +18,7 @@ export function avatarColor(index: number): string {
 export function SetupScreen() {
   const navigate = useNavigate();
   const game = useSession((state) => state.game);
+  const scorepad = useSession((state) => state.scorepad);
   const roster = useSession((state) => state.roster);
   const addPlayer = useSession((state) => state.addPlayer);
   const removePlayer = useSession((state) => state.removePlayer);
@@ -31,7 +32,10 @@ export function SetupScreen() {
 
   useEffect(() => {
     if (game && game.phase !== "gameOver") navigate("/local/game", { replace: true });
-  }, [game, navigate]);
+    else if (scorepad && deriveScorepad(scorepad).phase !== "gameOver") {
+      navigate("/score/game", { replace: true });
+    }
+  }, [game, scorepad, navigate]);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -60,6 +64,15 @@ export function SetupScreen() {
           Rules
         </button>
       </header>
+
+      <div className="mode-switch" role="group" aria-label="Game mode">
+        <button type="button" aria-pressed="true">
+          Play dice
+        </button>
+        <button type="button" aria-pressed="false" onClick={() => navigate("/score/setup")}>
+          Keep score
+        </button>
+      </div>
 
       <div className="setup-scroll">
         <div className="hero">

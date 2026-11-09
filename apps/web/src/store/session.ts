@@ -2,14 +2,20 @@ import { create } from "zustand";
 import {
   CLASSIC,
   createGame,
+  createScorepad,
+  deriveScorepad,
   migrateRecord,
   pendingTotal,
   preset,
   reduce,
+  reduceScorepad,
   toRecord,
+  toScorepadRecord,
   type DiceGameAction,
   type DiceGameState,
   type GameConfig,
+  type ScorepadAction,
+  type ScorepadState,
 } from "@farkle/engine";
 import { getSetting, loadActiveRecord, saveRecord, setSetting } from "@/lib/db.ts";
 import { setHapticsEnabled, setMuted } from "@/lib/audio.ts";
@@ -46,7 +52,11 @@ interface SessionState {
   game: DiceGameState | null;
   recordId: string | null;
   createdAt: number;
+  scorepad: ScorepadState | null;
+  scoreRecordId: string | null;
+  scoreCreatedAt: number;
   roster: string[];
+  scoreRoster: string[];
   settings: Settings;
   draftConfig: GameConfig;
   undo: UndoBank | null;
@@ -54,11 +64,17 @@ interface SessionState {
   hydrate: () => Promise<void>;
   addPlayer: (name: string) => string | null;
   removePlayer: (index: number) => void;
+  addScorePlayer: (name: string) => string | null;
+  removeScorePlayer: (index: number) => void;
   startGame: (config?: GameConfig) => void;
+  startScoreGame: (config?: GameConfig) => void;
   dispatch: (action: DiceGameAction) => { ok: boolean; error?: string };
+  dispatchScore: (action: ScorepadAction) => { ok: boolean; error?: string };
   undoBank: () => void;
+  undoScore: () => void;
   rematch: () => void;
   endGame: () => void;
+  endScoreGame: () => void;
   setSettings: (patch: Partial<Settings>) => void;
   setDraftConfig: (config: GameConfig) => void;
   clearError: () => void;
@@ -82,6 +98,10 @@ function scheduleSave(record: Parameters<typeof saveRecord>[0]): void {
 
 function persist(recordId: string, createdAt: number, game: DiceGameState): void {
   scheduleSave(toRecord(recordId, game, createdAt));
+}
+
+function persistScore(recordId: string, createdAt: number, state: ScorepadState): void {
+  scheduleSave(toScorepadRecord(recordId, state, createdAt));
 }
 
 function fromLegacy(): { state: DiceGameState; createdAt: number } | null {
@@ -128,7 +148,11 @@ export const useSession = create<SessionState>((set, get) => ({
   game: null,
   recordId: null,
   createdAt: 0,
+  scorepad: null,
+  scoreRecordId: null,
+  scoreCreatedAt: 0,
   roster: [],
+  scoreRoster: [],
   settings: DEFAULT_SETTINGS,
   draftConfig: { ...CLASSIC },
   undo: null,
@@ -138,26 +162,38 @@ export const useSession = create<SessionState>((set, get) => ({
     const storedSettings = await getSetting<Partial<Settings>>("settings", {});
     const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
     const roster = await getSetting<string[]>("roster", []);
+    const storedScoreRoster = await getSetting<string[]>("scoreRoster", []);
+    const scoreRoster = storedScoreRoster.length ? storedScoreRoster : roster.slice(0, 8);
     const storedConfig = await getSetting<Partial<GameConfig>>("config", {});
     const draftConfig: GameConfig = { ...CLASSIC, ...storedConfig };
     setMuted(!settings.sound);
     setHapticsEnabled(settings.haptics);
     setAnalyticsEnabled(settings.analytics);
-    set({ settings, roster, draftConfig });
+    set({ settings, roster, scoreRoster, draftConfig });
 
-    let loaded: { state: DiceGameState; id: string; createdAt: number } | null = null;
+    let loadedLocal: { state: DiceGameState; id: string; createdAt: number } | null = null;
+    let loadedScore: { state: ScorepadState; id: string; createdAt: number } | null = null;
     try {
       const record = await loadActiveRecord();
       const migrated = record ? migrateRecord(record) : null;
-      if (migrated) {
-        loaded = { state: migrated.state, id: migrated.id, createdAt: migrated.createdAt };
+      if (migrated?.mode === "score") {
+        loadedScore = { state: migrated.state, id: migrated.id, createdAt: migrated.createdAt };
+      } else if (migrated?.mode === "local") {
+        loadedLocal = { state: migrated.state, id: migrated.id, createdAt: migrated.createdAt };
       }
     } catch {
       /* storage unavailable — keep playing in memory */
     }
 
-    if (loaded) {
-      set({ game: loaded.state, recordId: loaded.id, createdAt: loaded.createdAt, ready: true });
+    if (loadedScore) {
+      set({
+        scorepad: loadedScore.state,
+        scoreRecordId: loadedScore.id,
+        scoreCreatedAt: loadedScore.createdAt,
+        ready: true,
+      });
+    } else if (loadedLocal) {
+      set({ game: loadedLocal.state, recordId: loadedLocal.id, createdAt: loadedLocal.createdAt, ready: true });
     } else {
       const legacy = fromLegacy();
       if (legacy) {
@@ -171,8 +207,11 @@ export const useSession = create<SessionState>((set, get) => ({
     }
 
     window.addEventListener("pagehide", () => {
-      const { game, recordId, createdAt } = get();
+      const { game, recordId, createdAt, scorepad, scoreRecordId, scoreCreatedAt } = get();
       if (game && recordId) void saveRecord(toRecord(recordId, game, createdAt)).catch(() => {});
+      if (scorepad && scoreRecordId) {
+        void saveRecord(toScorepadRecord(scoreRecordId, scorepad, scoreCreatedAt)).catch(() => {});
+      }
     });
   },
 
@@ -196,16 +235,92 @@ export const useSession = create<SessionState>((set, get) => ({
     void setSetting("roster", next);
   },
 
+  addScorePlayer: (name) => {
+    const cleaned = name.trim().replace(/\s+/g, " ").slice(0, 18);
+    if (!cleaned) return "Enter a name first.";
+    const { scoreRoster } = get();
+    if (scoreRoster.length >= 8) return "Eight players is the limit.";
+    if (scoreRoster.some((existing) => existing.toLowerCase() === cleaned.toLowerCase())) {
+      return "That name is already at the table.";
+    }
+    const next = [...scoreRoster, cleaned];
+    set({ scoreRoster: next, error: null });
+    void setSetting("scoreRoster", next);
+    return null;
+  },
+
+  removeScorePlayer: (index) => {
+    const next = get().scoreRoster.filter((_, i) => i !== index);
+    set({ scoreRoster: next, error: null });
+    void setSetting("scoreRoster", next);
+  },
+
   startGame: (config = preset("classic")) => {
-    const { roster } = get();
+    const { roster, game, recordId, createdAt, scorepad, scoreRecordId, scoreCreatedAt } = get();
     if (roster.length < 2) return;
-    const game = createGame(roster, config, config.firstPlayer === "random" ? Math.floor(Math.random() * roster.length) : 0);
+    if (game && recordId) {
+      void saveRecord({ ...toRecord(recordId, game, createdAt), status: "finished" }).catch(() => {});
+    }
+    if (scorepad && scoreRecordId) {
+      void saveRecord({
+        ...toScorepadRecord(scoreRecordId, scorepad, scoreCreatedAt),
+        status: "finished",
+      }).catch(() => {});
+    }
+    const nextGame = createGame(
+      roster,
+      config,
+      config.firstPlayer === "random" ? Math.floor(Math.random() * roster.length) : 0,
+    );
     const id = crypto.randomUUID();
-    const createdAt = Date.now();
+    const startedAt = Date.now();
     clearUndoTimer();
-    set({ game, recordId: id, createdAt, undo: null, error: null });
-    persist(id, createdAt, game);
-    track("game_started", { players: roster.length, target: config.target });
+    set({
+      game: nextGame,
+      recordId: id,
+      createdAt: startedAt,
+      scorepad: null,
+      scoreRecordId: null,
+      scoreCreatedAt: 0,
+      undo: null,
+      error: null,
+    });
+    persist(id, startedAt, nextGame);
+    track("game_started", { mode: "local", players: roster.length, target: config.target });
+  },
+
+  startScoreGame: (config = preset("classic")) => {
+    const { scoreRoster, game, recordId, createdAt, scorepad, scoreRecordId, scoreCreatedAt } = get();
+    if (scoreRoster.length < 2) return;
+    if (game && recordId) {
+      void saveRecord({ ...toRecord(recordId, game, createdAt), status: "finished" }).catch(() => {});
+    }
+    if (scorepad && scoreRecordId) {
+      void saveRecord({
+        ...toScorepadRecord(scoreRecordId, scorepad, scoreCreatedAt),
+        status: "finished",
+      }).catch(() => {});
+    }
+    const state = createScorepad(
+      scoreRoster,
+      config,
+      config.firstPlayer === "random" ? Math.floor(Math.random() * scoreRoster.length) : 0,
+    );
+    const id = crypto.randomUUID();
+    const startedAt = Date.now();
+    clearUndoTimer();
+    set({
+      scorepad: state,
+      scoreRecordId: id,
+      scoreCreatedAt: startedAt,
+      game: null,
+      recordId: null,
+      createdAt: 0,
+      undo: null,
+      error: null,
+    });
+    persistScore(id, startedAt, state);
+    track("game_started", { mode: "score", players: scoreRoster.length, target: config.target });
   },
 
   dispatch: (action) => {
@@ -256,6 +371,42 @@ export const useSession = create<SessionState>((set, get) => ({
     track("undo");
   },
 
+  dispatchScore: (action) => {
+    const { scorepad, scoreRecordId, scoreCreatedAt } = get();
+    if (!scorepad || !scoreRecordId) return { ok: false, error: "No scorepad in progress." };
+    const result = reduceScorepad(scorepad, action);
+    if (!result.ok) {
+      set({ error: result.error });
+      return { ok: false, error: result.error };
+    }
+    set({ scorepad: result.state, error: null });
+    persistScore(scoreRecordId, scoreCreatedAt, result.state);
+
+    const view = deriveScorepad(result.state);
+    if (action.type === "logTurn") {
+      track(action.kind === "farkle" ? "farkle" : "turn_logged", {
+        players: result.state.players.length,
+      });
+    } else if (action.type === "correct") {
+      track("correction");
+    } else if (action.type === "undo") {
+      track("undo");
+    }
+    if (view.phase === "gameOver" && deriveScorepad(scorepad).phase !== "gameOver") {
+      track("game_finished", { mode: "score", players: result.state.players.length });
+    }
+    return { ok: true };
+  },
+
+  undoScore: () => {
+    const result = get().dispatchScore({
+      type: "undo",
+      id: crypto.randomUUID(),
+      at: Date.now(),
+    });
+    if (result.ok) track("undo");
+  },
+
   rematch: () => {
     const { game, recordId, createdAt } = get();
     if (!game || !recordId) return;
@@ -276,6 +427,22 @@ export const useSession = create<SessionState>((set, get) => ({
     }
     clearUndoTimer();
     set({ game: null, recordId: null, createdAt: 0, undo: null, error: null });
+  },
+
+  endScoreGame: () => {
+    const { scorepad, scoreRecordId, scoreCreatedAt } = get();
+    if (scorepad && scoreRecordId) {
+      void saveRecord({
+        ...toScorepadRecord(scoreRecordId, scorepad, scoreCreatedAt),
+        status: "finished",
+      }).catch(() => {});
+    }
+    set({
+      scorepad: null,
+      scoreRecordId: null,
+      scoreCreatedAt: 0,
+      error: null,
+    });
   },
 
   setSettings: (patch) => {

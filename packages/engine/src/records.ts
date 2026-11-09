@@ -3,26 +3,37 @@
  */
 import { CLASSIC, type GameConfig } from "./rules.ts";
 import type { DiceGameState } from "./diceGame.ts";
+import { deriveScorepad, type ScorepadState } from "./scorepad.ts";
 
 export const SCHEMA_VERSION = 1;
 export type GameMode = "local" | "score" | "online";
 
-export interface GameRecord {
+interface BaseRecord {
   schemaVersion: number;
   id: string;
-  mode: GameMode;
   config: GameConfig;
-  state: DiceGameState;
   createdAt: number;
   updatedAt: number;
   status: "active" | "finished";
 }
 
+export interface LocalGameRecord extends BaseRecord {
+  mode: "local";
+  state: DiceGameState;
+}
+
+export interface ScorepadGameRecord extends BaseRecord {
+  mode: "score";
+  state: ScorepadState;
+}
+
+export type GameRecord = LocalGameRecord | ScorepadGameRecord;
+
 export function toRecord(
   id: string,
   state: DiceGameState,
   createdAt = Date.now(),
-): GameRecord {
+): LocalGameRecord {
   return {
     schemaVersion: SCHEMA_VERSION,
     id,
@@ -35,6 +46,23 @@ export function toRecord(
   };
 }
 
+export function toScorepadRecord(
+  id: string,
+  state: ScorepadState,
+  createdAt = Date.now(),
+): ScorepadGameRecord {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    id,
+    mode: "score",
+    config: state.config,
+    state,
+    createdAt,
+    updatedAt: Date.now(),
+    status: deriveScorepad(state).phase === "gameOver" ? "finished" : "active",
+  };
+}
+
 /** Upgrade an older record in place-compatible form. Unknown versions are rejected. */
 export function migrateRecord(raw: unknown): GameRecord | null {
   if (!raw || typeof raw !== "object") return null;
@@ -43,28 +71,59 @@ export function migrateRecord(raw: unknown): GameRecord | null {
   if (version > SCHEMA_VERSION) return null;
   if (!record.state || !Array.isArray(record.state.players)) return null;
 
-  const state = record.state;
+  const config: GameConfig = {
+    ...CLASSIC,
+    ...(record.config ?? record.state.config ?? {}),
+  };
+  const state = record.state as unknown as Record<string, unknown>;
+  const isScore = record.mode === "score" || Array.isArray(state.ledger);
+
+  if (isScore) {
+    const scoreState: ScorepadState = {
+      config,
+      players: (state.players as ScorepadState["players"]).map((player) => ({
+        id: String(player.id),
+        name: String(player.name).slice(0, 18),
+      })),
+      ledger: Array.isArray(state.ledger) ? (state.ledger as ScorepadState["ledger"]) : [],
+      startIndex: Number(state.startIndex ?? 0) || 0,
+      endedAt: typeof state.endedAt === "number" ? state.endedAt : null,
+    };
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      id: typeof record.id === "string" ? record.id : "legacy",
+      mode: "score",
+      config,
+      state: scoreState,
+      createdAt: record.createdAt ?? Date.now(),
+      updatedAt: record.updatedAt ?? Date.now(),
+      status: deriveScorepad(scoreState).phase === "gameOver" ? "finished" : "active",
+    };
+  }
+
+  const diceState = state as unknown as DiceGameState;
+  const migrated: DiceGameState = {
+    ...diceState,
+    config,
+    phase: diceState.phase === "rolling" ? "awaitingRoll" : diceState.phase,
+    roll: diceState.phase === "rolling" ? [] : diceState.roll,
+    selected: diceState.phase === "rolling" ? [] : diceState.selected,
+    kept: diceState.kept ?? [],
+    turnScore: diceState.turnScore ?? 0,
+    startIndex: diceState.startIndex ?? diceState.turn ?? 0,
+    targetReached: diceState.targetReached ?? false,
+    suddenDeath: diceState.suddenDeath ?? false,
+    lastEvent: diceState.lastEvent ?? null,
+    winnerId: diceState.winnerId ?? null,
+  };
   return {
     schemaVersion: SCHEMA_VERSION,
     id: typeof record.id === "string" ? record.id : "legacy",
-    mode: record.mode ?? "local",
-    config: { ...CLASSIC, ...(record.config ?? state.config ?? {}) },
-    state: {
-      ...state,
-      config: { ...CLASSIC, ...(record.config ?? state.config ?? {}) },
-      phase: state.phase === "rolling" ? "awaitingRoll" : state.phase,
-      roll: state.phase === "rolling" ? [] : state.roll,
-      selected: state.phase === "rolling" ? [] : state.selected,
-      kept: state.kept ?? [],
-      turnScore: state.turnScore ?? 0,
-      startIndex: state.startIndex ?? state.turn ?? 0,
-      targetReached: state.targetReached ?? false,
-      suddenDeath: state.suddenDeath ?? false,
-      lastEvent: state.lastEvent ?? null,
-      winnerId: state.winnerId ?? null,
-    },
+    mode: "local",
+    config,
+    state: migrated,
     createdAt: record.createdAt ?? Date.now(),
     updatedAt: record.updatedAt ?? Date.now(),
-    status: state.phase === "gameOver" ? "finished" : "active",
+    status: migrated.phase === "gameOver" ? "finished" : "active",
   };
 }

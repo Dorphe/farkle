@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { GameRecord } from "@farkle/engine";
+import { deriveScorepad, type GameRecord } from "@farkle/engine";
 import { listRecords } from "@/lib/db.ts";
 import { shareSummary, type ShareSummary } from "@/lib/share.ts";
 
@@ -8,20 +8,54 @@ const fmt = (value: number) => value.toLocaleString("en-US");
 const dateLabel = (timestamp: number) =>
   new Date(timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-function winnerOf(record: GameRecord) {
-  return (
-    record.state.players.find((player) => player.id === record.state.winnerId) ??
-    record.state.players.slice().sort((a, b) => b.score - a.score)[0]
-  );
+interface RecordView {
+  winnerName: string;
+  winnerScore: number;
+  winnerId: string | null;
+  players: { id: string; name: string; score: number }[];
+  modeLabel: string;
+  target: number;
 }
 
-function summaryOf(record: GameRecord): ShareSummary {
-  const winner = winnerOf(record);
+function viewOf(record: GameRecord): RecordView {
+  if (record.mode === "score") {
+    const derived = deriveScorepad(record.state);
+    const players = record.state.players
+      .map((player) => ({ ...player, score: derived.totals[player.id] ?? 0 }))
+      .sort((a, b) => b.score - a.score);
+    const winnerId = derived.winnerId ?? players[0]?.id ?? null;
+    const winner = players.find((player) => player.id === winnerId) ?? players[0];
+    return {
+      winnerName: winner?.name ?? "Game",
+      winnerScore: winner?.score ?? 0,
+      winnerId,
+      players,
+      modeLabel: "Scorepad",
+      target: record.config.target,
+    };
+  }
+
+  const players = record.state.players
+    .map((player) => ({ id: player.id, name: player.name, score: player.score }))
+    .sort((a, b) => b.score - a.score);
+  const winnerId = record.state.winnerId ?? players[0]?.id ?? null;
+  const winner = players.find((player) => player.id === winnerId) ?? players[0];
   return {
-    winner: winner?.name ?? "Someone",
+    winnerName: winner?.name ?? "Game",
     winnerScore: winner?.score ?? 0,
+    winnerId,
+    players,
+    modeLabel: "Dice",
     target: record.config.target,
-    players: record.state.players.map((player) => ({ name: player.name, score: player.score })),
+  };
+}
+
+function summaryOf(record: GameRecord, view: RecordView): ShareSummary {
+  return {
+    winner: view.winnerName,
+    winnerScore: view.winnerScore,
+    target: record.config.target,
+    players: view.players.map((player) => ({ name: player.name, score: player.score })),
     date: record.updatedAt,
   };
 }
@@ -50,10 +84,11 @@ export function HistoryScreen() {
     () => (openId ? records?.find((record) => record.id === openId) ?? null : null),
     [openId, records],
   );
+  const recap = open ? viewOf(open) : null;
 
   async function share() {
-    if (!open) return;
-    const outcome = await shareSummary(summaryOf(open));
+    if (!open || !recap) return;
+    const outcome = await shareSummary(summaryOf(open, recap));
     if (outcome === "copied") setNotice("Scorecard copied to the clipboard.");
     else if (outcome === "failed") setNotice("Couldn't share from this browser.");
     else if (outcome === "shared") setNotice("Shared.");
@@ -84,7 +119,7 @@ export function HistoryScreen() {
       ) : (
         <div className="history-list">
           {records.map((record) => {
-            const winner = winnerOf(record);
+            const view = viewOf(record);
             return (
               <button
                 key={record.id}
@@ -96,15 +131,15 @@ export function HistoryScreen() {
                 }}
               >
                 <span className="history-top">
-                  <span className="history-winner">{winner?.name ?? "Game"}</span>
-                  <span className="history-score">{fmt(winner?.score ?? 0)}</span>
+                  <span className="history-winner">{view.winnerName}</span>
+                  <span className="history-score">{fmt(view.winnerScore)}</span>
                 </span>
                 <span className="history-meta">
-                  {dateLabel(record.updatedAt)} · {record.state.players.length} players · first to{" "}
+                  {dateLabel(record.updatedAt)} · {view.modeLabel} · {view.players.length} players · first to{" "}
                   {fmt(record.config.target)}
                 </span>
                 <span className="history-players">
-                  {record.state.players.map((player) => `${player.name} ${fmt(player.score)}`).join(" · ")}
+                  {view.players.map((player) => `${player.name} ${fmt(player.score)}`).join(" · ")}
                 </span>
               </button>
             );
@@ -118,7 +153,7 @@ export function HistoryScreen() {
         </p>
       ) : null}
 
-      {open ? (
+      {open && recap ? (
         <div
           className="sheet-backdrop"
           onClick={(event) => event.target === event.currentTarget && setOpenId(null)}
@@ -126,9 +161,9 @@ export function HistoryScreen() {
           <div className="sheet" role="dialog" aria-modal="true" aria-label="Game recap">
             <div className="sheet-head">
               <div>
-                <h2>{winnerOf(open)?.name ?? "Recap"}</h2>
+                <h2>{recap.winnerName}</h2>
                 <p className="sheet-sub">
-                  {dateLabel(open.updatedAt)} · first to {fmt(open.config.target)}
+                  {dateLabel(open.updatedAt)} · {recap.modeLabel} · first to {fmt(open.config.target)}
                 </p>
               </div>
               <button type="button" className="sheet-close" onClick={() => setOpenId(null)} aria-label="Close recap">
@@ -136,26 +171,25 @@ export function HistoryScreen() {
               </button>
             </div>
 
-            <p className="recap-total">{fmt(winnerOf(open)?.score ?? 0)}</p>
+            <p className="recap-total">{fmt(recap.winnerScore)}</p>
             <div className="board-card" style={{ marginTop: 12 }}>
-              {open.state.players
-                .slice()
-                .sort((a, b) => b.score - a.score)
-                .map((player, index) => (
-                  <div
-                    key={player.id}
-                    className={`board-row ${player.id === open.state.winnerId ? "is-winner" : ""}`}
-                  >
-                    <span className="board-rank">{index + 1}</span>
-                    <span className="board-name">{player.name}</span>
-                    <span className="board-score">{fmt(player.score)}</span>
-                  </div>
-                ))}
+              {recap.players.map((player, index) => (
+                <div
+                  key={player.id}
+                  className={`board-row ${player.id === recap.winnerId ? "is-winner" : ""}`}
+                >
+                  <span className="board-rank">{index + 1}</span>
+                  <span className="board-name">{player.name}</span>
+                  <span className="board-score">{fmt(player.score)}</span>
+                </div>
+              ))}
             </div>
             <p className="settings-footnote">
-              {open.state.players.length} players ·{" "}
+              {recap.players.length} players · {recap.modeLabel} ·{" "}
               {open.config.winCondition === "first" ? "first to target" : "complete round"} ·{" "}
-              {open.config.farklePenalty > 0 ? `−${fmt(open.config.farklePenalty)} farkle penalty` : "no penalty"}
+              {open.config.farklePenalty > 0
+                ? `−${fmt(open.config.farklePenalty)} farkle penalty`
+                : "no penalty"}
             </p>
             <div className="recap-actions">
               <button type="button" className="btn-secondary" onClick={() => void share()}>

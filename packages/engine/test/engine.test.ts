@@ -216,9 +216,11 @@ describe("dice-turn reducer", () => {
       state: { ...record.state, phase: "rolling" as const, roll: [1, 2] as Face[], selected: [true, false] },
     };
     const migrated = migrateRecord(broken);
-    expect(migrated?.state.phase).toBe("awaitingRoll");
-    expect(migrated?.state.roll).toEqual([]);
-    expect(migrated?.status).toBe("active");
+    expect(migrated?.mode).toBe("local");
+    if (migrated?.mode !== "local") throw new Error("expected a local record");
+    expect(migrated.state.phase).toBe("awaitingRoll");
+    expect(migrated.state.roll).toEqual([]);
+    expect(migrated.status).toBe("active");
     expect(migrateRecord({ schemaVersion: 99 })).toBeNull();
   });
 });
