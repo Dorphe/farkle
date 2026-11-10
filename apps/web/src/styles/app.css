@@ -23,6 +23,15 @@ input {
   color: inherit;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* The React host is a real layout box: without an explicit width it would be
+   shrink-to-fit inside body's flex centring, and .app-frame's 100% would then
+   resolve against its content — making the phone frame change width per screen. */
+#root {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
 button {
   touch-action: manipulation;
 }
@@ -37,29 +46,55 @@ p {
   margin: 0;
 }
 
+:root {
+  /* Fluid app shell width: phone on small screens, roomy card on desktop.
+     Kept on :root (not content-dependent) so the frame never changes width. */
+  --frame-w: 100%;
+  --frame-h: 100dvh;
+}
+
 .app-frame {
   position: relative;
   width: 100%;
-  max-width: 430px;
-  height: 100dvh;
+  max-width: var(--frame-w);
+  height: var(--frame-h);
   margin: 0 auto;
   overflow: hidden;
   background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
 }
 
-@media (min-width: 640px) {
+@media (min-width: 680px) {
+  :root {
+    --frame-w: 480px;
+    --frame-h: min(880px, calc(100dvh - 48px));
+  }
   body {
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     min-height: 100dvh;
     padding: 24px;
   }
   .app-frame {
-    height: min(844px, calc(100dvh - 48px));
     border-radius: 30px;
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.7) inset,
       0 30px 80px rgba(43, 34, 32, 0.18);
+  }
+}
+
+@media (min-width: 900px) {
+  :root {
+    --frame-w: 640px;
+    --frame-h: min(900px, calc(100dvh - 48px));
+  }
+}
+
+/* Full desktop: wide card + two-column tables */
+@media (min-width: 1080px) and (min-height: 680px) {
+  :root {
+    --frame-w: 960px;
+    --frame-h: min(920px, calc(100dvh - 48px));
   }
 }
 
@@ -2313,4 +2348,178 @@ p {
   line-height: 1.4;
   color: var(--muted);
   text-align: center;
+}
+
+/* Short or mid-size desktop windows: the scorepad is fixed-height content,
+   so let it scroll instead of clipping the keypad. */
+@media (min-width: 680px) {
+  .score-screen {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* bottom sheets shouldn't span the whole wide card */
+  .sheet {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+}
+
+/* ---------- desktop layout ----------
+   The shell is one stable, wide card (see --frame-w). Inside it, reading
+   screens keep a comfortable measure and the tables split into two columns
+   so the dice and score pad use the space instead of stretching. */
+@media (min-width: 1080px) and (min-height: 680px) {
+  /* reading screens: centred column, overlays/toasts follow the same box */
+  .setup-screen,
+  .rules-screen,
+  .settings-screen,
+  .history-screen,
+  .join-screen,
+  .online-lobby {
+    padding-inline: max(24px, calc((100% - 600px) / 2));
+  }
+  .screen {
+    padding-block: 18px calc(20px + env(safe-area-inset-bottom));
+  }
+  .topbar {
+    height: 52px;
+  }
+
+  /* dice table: control rail on the left, big tray on the right */
+  .game-screen,
+  .score-screen {
+    padding-inline: 28px;
+  }
+  .game-screen {
+    display: grid;
+    grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto 1fr auto;
+    grid-template-areas:
+      "head head"
+      "tabs tray"
+      "turn tray"
+      "read tray"
+      "act  tray"
+      "foot foot";
+    column-gap: 28px;
+  }
+  .game-screen > .topbar {
+    grid-area: head;
+  }
+  .game-screen > .tabs {
+    grid-area: tabs;
+    flex-wrap: wrap;
+    overflow: visible;
+    padding-top: 8px;
+  }
+  .game-screen > .turn-card-wrap {
+    grid-area: turn;
+    align-self: start;
+    padding-top: 10px;
+  }
+  .game-screen > .tray {
+    grid-area: tray;
+    /* keep the dice table landscape: the 3D camera frames its arena by the
+       narrower side, so a squat box renders much larger dice than a tall one */
+    height: min(520px, 100%);
+    align-self: center;
+  }
+  .game-screen > .readout {
+    grid-area: read;
+  }
+  .game-screen > .actions {
+    grid-area: act;
+    align-self: start;
+  }
+  .game-screen > .game-foot {
+    grid-area: foot;
+  }
+  .game-screen .dice-grid {
+    max-width: 460px;
+    gap: 16px;
+  }
+  .game-screen .die {
+    border-radius: 28px;
+  }
+  .game-screen .readout-label {
+    font-size: 9px;
+    letter-spacing: 1.4px;
+  }
+  .game-screen .readout-value {
+    font-size: 24px;
+  }
+  .game-screen > .actions .btn-action {
+    height: 62px;
+    font-size: 14px;
+  }
+
+  /* scorepad: running totals on the left, keypad on the right */
+  .score-screen {
+    display: grid;
+    grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr auto auto;
+    grid-template-areas:
+      "head head"
+      "status status"
+      "players entry"
+      "act entry"
+      "last entry";
+    column-gap: 24px;
+  }
+  .score-screen > .topbar {
+    grid-area: head;
+  }
+  .score-screen > .score-head {
+    grid-area: status;
+  }
+  .score-screen > .score-players {
+    grid-area: players;
+    align-self: center;
+    max-height: none;
+  }
+  .score-screen > .entry-card {
+    grid-area: entry;
+    align-self: center;
+    margin-top: 12px;
+    padding: 18px 20px 20px;
+  }
+  .score-screen .entry-display {
+    padding: 10px 0 6px;
+    font-size: 56px;
+  }
+  .score-screen > .score-actions {
+    grid-area: act;
+    align-self: end;
+  }
+  .score-screen > .score-last {
+    grid-area: last;
+  }
+  .score-screen .key {
+    height: 54px;
+    font-size: 20px;
+  }
+
+  /* table display: two-up grid of seat tiles */
+  .score-board-screen {
+    padding-inline: 28px;
+  }
+  .board-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-content: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 760px;
+    margin-inline: auto;
+  }
+  .board-tile {
+    min-height: 64px;
+  }
+
+  /* room code reads large on a wide screen */
+  .room-code span {
+    width: 64px;
+    height: 78px;
+    font-size: 38px;
+  }
 }
