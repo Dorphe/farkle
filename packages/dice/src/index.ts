@@ -52,6 +52,12 @@ export interface DiceTableOptions {
 export interface DiceTable {
   /** Physics roll; resolves with the face showing up on each die. */
   roll(n: number): Promise<number[]>;
+  /**
+   * Cosmetic physics throw with no result. Use when another authority (the
+   * room server) owns the values: toss for the motion, then `show` the
+   * authoritative faces — the dice ease from wherever they are into place.
+   */
+  toss(n: number): void;
   /** Place dice at rest on the table (resume, selection changes). */
   show(values: number[], selected?: boolean[]): void;
   setSelection(selected: boolean[]): void;
@@ -61,6 +67,16 @@ export interface DiceTable {
   readonly active: boolean;
 }
 
+interface Ease {
+  from: THREE.Vector3;
+  fromQ: THREE.Quaternion;
+  to: THREE.Vector3;
+  toQ: THREE.Quaternion;
+  t: number;
+  dur: number;
+  arc: number;
+}
+
 interface Die {
   mesh: THREE.Mesh;
   body: CANNON.Body;
@@ -68,7 +84,10 @@ interface Die {
   liftTarget: number;
   selected: boolean;
   index: number;
+  ease: Ease | null;
 }
+
+const EASE_DURATION = 0.3;
 
 export function isWebGLAvailable(): boolean {
   try {
@@ -84,7 +103,14 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
 
   let renderer: THREE.WebGLRenderer;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      // The loop parks once the table is still; without this the browser is
+      // free to drop the finished frame and the dice vanish on the next paint.
+      preserveDrawingBuffer: true,
+      powerPreference: "high-performance",
+    });
   } catch {
     return null;
   }
@@ -226,7 +252,7 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     });
     world.addBody(body);
     body.sleep();
-    return { mesh, body, lift: 0, liftTarget: 0, selected: false, index };
+    return { mesh, body, lift: 0, liftTarget: 0, selected: false, index, ease: null };
   }
 
   function ensureDice(n: number): void {
@@ -254,28 +280,73 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     return q;
   }
 
-  function placeStatic(faces: number[]): void {
+  function layoutFor(faces: number[]): Array<{ pos: THREE.Vector3; quat: THREE.Quaternion }> {
     const n = faces.length;
     const cols = Math.min(3, n);
     const rows = Math.ceil(n / cols);
+    const targets: Array<{ pos: THREE.Vector3; quat: THREE.Quaternion }> = [];
     for (let i = 0; i < n; i++) {
       const r = Math.floor(i / cols);
       const c = i % cols;
       const inRow = Math.min(cols, n - r * cols);
+      const x = (c - (inRow - 1) / 2) * 1.32;
+      const z = (r - (rows - 1) / 2) * 1.32;
+      targets.push({
+        pos: new THREE.Vector3(x, 0.5, z),
+        quat: quatForValue(faces[i] ?? 1, (Math.random() - 0.5) * 0.5),
+      });
+    }
+    return targets;
+  }
+
+  function restAt(die: Die, pos: THREE.Vector3, quat: THREE.Quaternion): void {
+    die.ease = null;
+    die.body.position.set(pos.x, pos.y, pos.z);
+    die.body.quaternion.set(quat.x, quat.y, quat.z, quat.w);
+    die.body.velocity.setZero();
+    die.body.angularVelocity.setZero();
+    die.body.sleep();
+    die.lift = 0;
+    die.liftTarget = 0;
+    die.mesh.position.copy(pos);
+    die.mesh.quaternion.copy(quat);
+  }
+
+  function placeStatic(faces: number[]): void {
+    const targets = layoutFor(faces);
+    for (let i = 0; i < targets.length; i++) {
       const die = dice[i];
-      if (!die) continue;
-      const x = (c - (inRow - 1) / 2) * 1.16;
-      const z = (r - (rows - 1) / 2) * 1.16;
-      const q = quatForValue(faces[i] ?? 1, (Math.random() - 0.5) * 0.5);
-      die.body.position.set(x, 0.5, z);
-      die.body.quaternion.set(q.x, q.y, q.z, q.w);
+      const target = targets[i];
+      if (!die || !target) continue;
+      restAt(die, target.pos, target.quat);
+    }
+  }
+
+  /** Glide dice from wherever they are to the authoritative faces. */
+  function placeEased(faces: number[]): void {
+    const targets = layoutFor(faces);
+    for (let i = 0; i < targets.length; i++) {
+      const die = dice[i];
+      const target = targets[i];
+      if (!die || !target) continue;
+      const still =
+        die.mesh.position.distanceToSquared(target.pos) < 1e-4 &&
+        Math.abs(die.mesh.quaternion.dot(target.quat)) > 0.9999;
+      if (still) continue;
+      die.ease = {
+        from: die.mesh.position.clone(),
+        fromQ: die.mesh.quaternion.clone(),
+        to: target.pos,
+        toQ: target.quat,
+        t: 0,
+        dur: EASE_DURATION,
+        arc: 0.08,
+      };
+      die.lift = 0;
+      die.liftTarget = 0;
       die.body.velocity.setZero();
       die.body.angularVelocity.setZero();
       die.body.sleep();
-      die.lift = 0;
-      die.liftTarget = 0;
-      die.mesh.position.set(x, 0.5, z);
-      die.mesh.quaternion.copy(q);
     }
   }
 
@@ -360,6 +431,53 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     }
   }
 
+  /** Throw every die from above with random spin. Result is resolved by settle or `show`. */
+  function launch(n: number): void {
+    ensureDice(n);
+    rolling = true;
+    rollStart = performance.now();
+    stillFrames = 0;
+    currentFaces = [];
+    const total = dice.length;
+    dice.forEach((die, i) => {
+      die.body.wakeUp();
+      die.ease = null;
+      die.lift = 0;
+      die.liftTarget = 0;
+      die.selected = false;
+      die.mesh.material = faceMaterials(false);
+      const cols = Math.min(3, total);
+      const row = Math.floor(i / cols);
+      const col = i % cols;
+      const rows = Math.ceil(total / cols);
+      const px = (col - (cols - 1) / 2) * 1.35 + (Math.random() - 0.5) * 0.5;
+      const pz = (row - (rows - 1) / 2) * 1.15 + (Math.random() - 0.5) * 0.4;
+      die.body.position.set(px, 2.4 + (i % cols) * 0.16 + Math.random() * 0.5, pz);
+      die.body.quaternion.setFromEuler(
+        Math.random() * 6.283,
+        Math.random() * 6.283,
+        Math.random() * 6.283,
+      );
+      die.body.velocity.set(
+        (Math.random() - 0.5) * 2.2,
+        -3 - Math.random() * 2,
+        (Math.random() - 0.5) * 1.6,
+      );
+      die.body.angularVelocity.set(
+        (Math.random() - 0.5) * 14,
+        (Math.random() - 0.5) * 14,
+        (Math.random() - 0.5) * 14,
+      );
+    });
+    idleFrames = 0;
+    startLoop();
+  }
+
+  function cancelRoll(): void {
+    rolling = false;
+    settleResolve = null;
+  }
+
   function finishRoll(): void {
     rolling = false;
     const values = dice.map(snapDie);
@@ -391,6 +509,23 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     world.step(1 / 60, dt, 6);
 
     for (const die of dice) {
+      const ease = die.ease;
+      if (ease) {
+        ease.t = Math.min(1, ease.t + dt / ease.dur);
+        const k = ease.t * ease.t * (3 - 2 * ease.t);
+        die.mesh.position.lerpVectors(ease.from, ease.to, k);
+        die.mesh.position.y += Math.sin(k * Math.PI) * ease.arc;
+        die.mesh.quaternion.slerpQuaternions(ease.fromQ, ease.toQ, k);
+        die.body.position.set(die.mesh.position.x, die.mesh.position.y, die.mesh.position.z);
+        die.body.quaternion.set(
+          die.mesh.quaternion.x,
+          die.mesh.quaternion.y,
+          die.mesh.quaternion.z,
+          die.mesh.quaternion.w,
+        );
+        if (ease.t >= 1) restAt(die, ease.to, ease.toQ);
+        continue;
+      }
       die.mesh.position.set(die.body.position.x, die.body.position.y + die.lift, die.body.position.z);
       const q = die.body.quaternion;
       die.mesh.quaternion.set(q.x, q.y, q.z, q.w);
@@ -403,7 +538,7 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     renderer.render(scene, camera);
 
     idleFrames++;
-    if (!rolling && idleFrames > 45) stopLoop();
+    if (!rolling && !dice.some((die) => die.ease) && idleFrames > 45) stopLoop();
   }
 
   function startLoop(): void {
@@ -480,56 +615,27 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     },
     roll(n: number): Promise<number[]> {
       if (disposed) return Promise.reject(new Error("Dice table disposed"));
-      ensureDice(n);
-      rolling = true;
-      rollStart = performance.now();
-      stillFrames = 0;
-      currentFaces = [];
-      const count = dice.length;
-      dice.forEach((die, i) => {
-        die.body.wakeUp();
-        die.lift = 0;
-        die.liftTarget = 0;
-        die.selected = false;
-        die.mesh.material = faceMaterials(false);
-        const cols = Math.min(3, count);
-        const row = Math.floor(i / cols);
-        const col = i % cols;
-        const rows = Math.ceil(count / cols);
-        const px = (col - (cols - 1) / 2) * 1.35 + (Math.random() - 0.5) * 0.5;
-        const pz = (row - (rows - 1) / 2) * 1.15 + (Math.random() - 0.5) * 0.4;
-        die.body.position.set(px, 2.4 + (i % cols) * 0.16 + Math.random() * 0.5, pz);
-        die.body.quaternion.setFromEuler(
-          Math.random() * 6.283,
-          Math.random() * 6.283,
-          Math.random() * 6.283,
-        );
-        die.body.velocity.set(
-          (Math.random() - 0.5) * 2.2,
-          -3 - Math.random() * 2,
-          (Math.random() - 0.5) * 1.6,
-        );
-        die.body.angularVelocity.set(
-          (Math.random() - 0.5) * 14,
-          (Math.random() - 0.5) * 14,
-          (Math.random() - 0.5) * 14,
-        );
-      });
-      idleFrames = 0;
-      startLoop();
+      launch(n);
       return new Promise<number[]>((resolve) => {
         settleResolve = resolve;
       });
     },
+    toss(n: number): void {
+      if (disposed) return;
+      launch(n);
+    },
     show(values: number[], selected: boolean[] = []): void {
-      if (disposed || rolling) return;
+      if (disposed) return;
       const same =
         values.length === currentFaces.length &&
         values.every((value, i) => value === currentFaces[i]) &&
         dice.length === values.length;
+      cancelRoll();
       if (!same) {
+        const countChanged = dice.length !== values.length;
         ensureDice(values.length);
-        placeStatic(values);
+        if (countChanged) placeStatic(values);
+        else placeEased(values);
         currentFaces = values.slice();
         resize();
       }
@@ -545,8 +651,9 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
       interactive = on;
     },
     clear(): void {
-      rolling = false;
-      settleResolve = null;
+      if (disposed) return;
+      if (!rolling && !dice.length && !currentFaces.length) return;
+      cancelRoll();
       ensureDice(0);
       currentFaces = [];
       stopLoop();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   currentPlayer,
@@ -8,8 +8,10 @@ import {
   selectedFaces,
   type Face,
 } from "@farkle/engine";
+import type { DiceTable } from "@farkle/dice";
 import type { RoomView } from "@farkle/protocol";
 import { useOnline } from "@/store/online.ts";
+import { useSession } from "@/store/session.ts";
 import { DieButton, GhostDice, MiniDie } from "@/components/Die.tsx";
 import { WinnerScreen } from "@/components/WinnerScreen.tsx";
 import { ScoreboardSheet } from "@/components/ScoreboardSheet.tsx";
@@ -20,6 +22,18 @@ import { avatarColor } from "@/screens/SetupScreen.tsx";
 
 const fmt = (value: number) => value.toLocaleString("en-US");
 
+/** How long the cosmetic throw tumbles before it settles on the server's faces. */
+const TOSS_MIN_MS = 950;
+
+function hasWebGL(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    return !!(window.WebGLRenderingContext && (canvas.getContext("webgl2") || canvas.getContext("webgl")));
+  } catch {
+    return false;
+  }
+}
+
 export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId: string }) {
   const navigate = useNavigate();
   const dispatchAction = useOnline((state) => state.dispatchAction);
@@ -29,10 +43,20 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
   const error = useOnline((state) => state.error);
   const clearError = useOnline((state) => state.clearError);
 
+  const settings = useSession((state) => state.settings);
+
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [boardOpen, setBoardOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const [use3D, setUse3D] = useState(false);
+  const [tossing, setTossing] = useState(false);
+  const tableHostRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<DiceTable | null>(null);
+  const selectRef = useRef<(index: number) => void>(() => {});
+  const tossingRef = useRef(false);
+  const tossStartRef = useRef(0);
 
   const game = room.game;
   const currentIndex = game?.turn ?? 0;
@@ -40,6 +64,60 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
   const mine = Boolean(game && room.phase === "playing" && room.seats[currentIndex]?.id === playerId);
   const host = room.seats.find((seat) => seat.id === room.hostId) ?? null;
   const isHost = room.hostId === playerId;
+
+  /* ---------- 3D table (lazy chunk) ---------- */
+  useEffect(() => {
+    if (settings.dice === "2d" || settings.reducedMotion || !hasWebGL()) return;
+    let cancelled = false;
+    let table: DiceTable | null = null;
+    void import("@farkle/dice")
+      .then((mod) => {
+        if (cancelled || !tableHostRef.current) return;
+        table = mod.createDiceTable(tableHostRef.current, {
+          onSelect: (index) => selectRef.current(index),
+        });
+        if (table) {
+          tableRef.current = table;
+          setUse3D(true);
+        }
+      })
+      .catch(() => {
+        /* 2D fallback stays in charge */
+      });
+    return () => {
+      cancelled = true;
+      tableRef.current = null;
+      setUse3D(false);
+      table?.dispose();
+    };
+  }, [settings.dice, settings.reducedMotion]);
+
+  // The room server owns the values, so the table only ever displays them.
+  // A local throw runs for feel; the faces land when the server answers.
+  useEffect(() => {
+    const table = tableRef.current;
+    if (!table) return;
+    table.setInteractive(Boolean(mine && game?.phase === "awaitingKeep"));
+    // `turnEnd` is a farkle: the dice that busted still land on the table.
+    const revealing = game?.phase === "awaitingKeep" || game?.phase === "turnEnd";
+    if (revealing && game?.roll.length) {
+      const values = game.roll;
+      const selected = game.selected;
+      const reveal = () => {
+        tossingRef.current = false;
+        setTossing(false);
+        tableRef.current?.show(values, selected);
+      };
+      if (!tossingRef.current) {
+        reveal();
+        return;
+      }
+      const delay = Math.max(0, TOSS_MIN_MS - (Date.now() - tossStartRef.current));
+      const timer = window.setTimeout(reveal, delay);
+      return () => window.clearTimeout(timer);
+    }
+    if (!tossingRef.current) table.clear();
+  }, [game, mine, use3D]);
 
   useEffect(() => {
     setBusy(false);
@@ -103,9 +181,11 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
     playCue("keep");
     haptic(8);
   }
+  selectRef.current = toggle;
 
   function rollNow() {
     if (!mine || busy || !game) return;
+    let count = diceLeft(game);
     if (game.phase === "awaitingKeep") {
       if (selection === null || picked.length === 0) return;
       dispatchAction({ type: "keep" });
@@ -114,9 +194,25 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
         setBusy(true);
         return;
       }
+      count = remaining;
     }
+
+    // Cosmetic throw: the server decides the faces, the table just animates.
+    const table = tableRef.current;
+    if (table && use3D && count > 0) {
+      table.toss(count);
+      tossStartRef.current = Date.now();
+      tossingRef.current = true;
+      setTossing(true);
+      window.setTimeout(() => {
+        if (!tossingRef.current) return;
+        tossingRef.current = false;
+        setTossing(false);
+        if (useOnline.getState().room?.game?.phase !== "awaitingKeep") tableRef.current?.clear();
+      }, 2600);
+    }
+
     dispatchAction({ type: "roll" });
-    playCue("roll");
     setBusy(true);
     window.setTimeout(() => setBusy(false), 1400);
   }
@@ -264,23 +360,42 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
       </div>
 
       <div className="tray">
-        {game.phase === "awaitingKeep" && game.roll.length ? (
-          <div className={`dice-grid ${mine ? "" : "readonly"}`} role="group" aria-label="Dice on the table">
-            {game.roll.map((face: Face, index: number) => (
-              <DieButton
-                key={`${index}-${face}-${game.selected[index] ? 1 : 0}`}
-                face={face}
-                index={index}
-                selected={game.selected[index] ?? false}
-                onToggle={toggle}
+        <div className="dice-table" ref={tableHostRef} />
+        {!use3D &&
+          (game.phase === "awaitingKeep" && game.roll.length ? (
+            <div className="dice-grid" role="group" aria-label="Dice on the table">
+              {game.roll.map((face: Face, index: number) => (
+                <DieButton
+                  key={`${index}-${face}-${game.selected[index] ? 1 : 0}`}
+                  face={face}
+                  index={index}
+                  selected={game.selected[index] ?? false}
+                  onToggle={toggle}
+                  disabled={!mine}
+                />
+              ))}
+            </div>
+          ) : (
+            <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
+          ))}
+        {use3D && !tossing && game.phase !== "awaitingKeep" ? (
+          <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
+        ) : null}
+        <p className="tray-hint">{hint}</p>
+        {use3D && game.phase === "awaitingKeep" && game.roll.length ? (
+          <div className="sr-only" role="group" aria-label="Dice on the table">
+            {game.roll.map((face, index) => (
+              <button
+                key={`sr-${index}-${face}`}
+                type="button"
+                aria-pressed={game.selected[index] ?? false}
+                aria-label={`Die ${index + 1}, value ${face}${game.selected[index] ? ", kept" : ""}`}
+                onClick={() => toggle(index)}
                 disabled={!mine}
               />
             ))}
           </div>
-        ) : (
-          <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
-        )}
-        <p className="tray-hint">{hint}</p>
+        ) : null}
       </div>
 
       <div className="readout">
