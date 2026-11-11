@@ -10,7 +10,7 @@ import {
 } from "@farkle/engine";
 import type { DiceTable } from "@farkle/dice";
 import type { RoomView } from "@farkle/protocol";
-import { useOnline } from "@/store/online.ts";
+import { isMyTurn, useOnline } from "@/store/online.ts";
 import { useSession } from "@/store/session.ts";
 import { DieButton, GhostDice, MiniDie } from "@/components/Die.tsx";
 import { WinnerScreen } from "@/components/WinnerScreen.tsx";
@@ -21,9 +21,6 @@ import { shareSummary } from "@/lib/share.ts";
 import { avatarColor } from "@/screens/SetupScreen.tsx";
 
 const fmt = (value: number) => value.toLocaleString("en-US");
-
-/** How long the cosmetic throw tumbles before it settles on the server's faces. */
-const TOSS_MIN_MS = 950;
 
 function hasWebGL(): boolean {
   try {
@@ -56,7 +53,7 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
   const tableRef = useRef<DiceTable | null>(null);
   const selectRef = useRef<(index: number) => void>(() => {});
   const tossingRef = useRef(false);
-  const tossStartRef = useRef(0);
+  const expectRollRef = useRef(false);
 
   const game = room.game;
   const currentIndex = game?.turn ?? 0;
@@ -92,34 +89,49 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
     };
   }, [settings.dice, settings.reducedMotion]);
 
-  // The room server owns the values, so the table only ever displays them.
-  // A local throw runs for feel; the faces land when the server answers.
+  // The room server owns the values, so the table only animates them: a fresh
+  // roll is thrown so the dice land on those faces, everything else (resume,
+  // reconnect, selection) is drawn where it already is.
   useEffect(() => {
     const table = tableRef.current;
     if (!table) return;
-    table.setInteractive(Boolean(mine && game?.phase === "awaitingKeep"));
     // `turnEnd` is a farkle: the dice that busted still land on the table.
     const revealing = game?.phase === "awaitingKeep" || game?.phase === "turnEnd";
-    if (revealing && game?.roll.length) {
+
+    if (!game || !revealing || !game.roll.length) {
+      if (game?.phase === "awaitingRoll") expectRollRef.current = true;
+      table.setInteractive(false);
+      if (!tossingRef.current) table.clear();
+      return;
+    }
+
+    if (expectRollRef.current) {
+      expectRollRef.current = false;
       const values = game.roll;
-      const selected = game.selected;
-      const reveal = () => {
+      tossingRef.current = true;
+      setTossing(true);
+      table.setInteractive(false);
+      void table.toss(values).then(() => {
         tossingRef.current = false;
         setTossing(false);
-        tableRef.current?.show(values, selected);
-      };
-      if (!tossingRef.current) {
-        reveal();
-        return;
-      }
-      const delay = Math.max(0, TOSS_MIN_MS - (Date.now() - tossStartRef.current));
-      const timer = window.setTimeout(reveal, delay);
-      return () => window.clearTimeout(timer);
+        setBusy(false);
+        const latest = useOnline.getState().room?.game;
+        const live = tableRef.current;
+        if (!live) return;
+        if (latest?.roll.length) live.show(latest.roll, latest.selected);
+        live.setInteractive(
+          Boolean(latest?.phase === "awaitingKeep" && isMyTurn(useOnline.getState().room, playerId)),
+        );
+      });
+      return;
     }
-    if (!tossingRef.current) table.clear();
-  }, [game, mine, use3D]);
+
+    table.show(game.roll, game.selected);
+    table.setInteractive(Boolean(mine && game.phase === "awaitingKeep"));
+  }, [game, mine, use3D, playerId]);
 
   useEffect(() => {
+    if (tossingRef.current) return;
     setBusy(false);
   }, [game?.roll, game?.phase, game?.turn]);
 
@@ -185,7 +197,6 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
 
   function rollNow() {
     if (!mine || busy || !game) return;
-    let count = diceLeft(game);
     if (game.phase === "awaitingKeep") {
       if (selection === null || picked.length === 0) return;
       dispatchAction({ type: "keep" });
@@ -194,27 +205,13 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
         setBusy(true);
         return;
       }
-      count = remaining;
     }
 
-    // Cosmetic throw: the server decides the faces, the table just animates.
-    const table = tableRef.current;
-    if (table && use3D && count > 0) {
-      table.toss(count);
-      tossStartRef.current = Date.now();
-      tossingRef.current = true;
-      setTossing(true);
-      window.setTimeout(() => {
-        if (!tossingRef.current) return;
-        tossingRef.current = false;
-        setTossing(false);
-        if (useOnline.getState().room?.game?.phase !== "awaitingKeep") tableRef.current?.clear();
-      }, 2600);
-    }
-
+    // The throw itself starts when the server's roll comes back, so the dice
+    // land on the values the room agrees on.
     dispatchAction({ type: "roll" });
     setBusy(true);
-    window.setTimeout(() => setBusy(false), 1400);
+    window.setTimeout(() => setBusy(false), 4000);
   }
 
   function bank() {
@@ -295,15 +292,17 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
   if (!mine || game.phase === "turnEnd" || game.phase === "gameOver") bankDisabled = true;
 
   const left = diceLeft(game);
-  const hint = mine
-    ? game.phase === "awaitingRoll"
-      ? game.turnScore > 0
-        ? `Roll the ${left} ${left === 1 ? "die" : "dice"} left.`
-        : "Press Roll to start your turn."
-      : left === 0
-        ? "All six dice are kept — bank to finish the turn."
-        : "Tap scoring dice to keep them."
-    : `${player.name} is taking their turn.`;
+  const hint = tossing
+    ? "Rolling…"
+    : mine
+      ? game.phase === "awaitingRoll"
+        ? game.turnScore > 0
+          ? `Roll the ${left} ${left === 1 ? "die" : "dice"} left.`
+          : "Press Roll to start your turn."
+        : left === 0
+          ? "All six dice are kept — bank to finish the turn."
+          : "Tap scoring dice to keep them."
+      : `${player.name} is taking their turn.`;
 
   const others = game.players
     .map((value, index) => ({ value, index }))
@@ -398,7 +397,7 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
         ) : null}
       </div>
 
-      <div className="readout">
+      <div className={`readout ${tossing ? "is-waiting" : ""}`}>
         <div className="readout-group">
           <span className="readout-label">SELECTED</span>
           <span className={`readout-value ${selection !== null && selection > 0 ? "accent" : ""}`}>

@@ -53,11 +53,12 @@ export interface DiceTable {
   /** Physics roll; resolves with the face showing up on each die. */
   roll(n: number): Promise<number[]>;
   /**
-   * Cosmetic physics throw with no result. Use when another authority (the
-   * room server) owns the values: toss for the motion, then `show` the
-   * authoritative faces — the dice ease from wherever they are into place.
+   * Throw dice that land on the given faces. Use when another authority (the
+   * room server) owns the values: the tumble is scripted so each die comes to
+   * rest showing its value — no correction pass, no spin at the end.
+   * Resolves when every die has stopped.
    */
-  toss(n: number): void;
+  toss(values: number[]): Promise<void>;
   /** Place dice at rest on the table (resume, selection changes). */
   show(values: number[], selected?: boolean[]): void;
   setSelection(selected: boolean[]): void;
@@ -77,6 +78,20 @@ interface Ease {
   arc: number;
 }
 
+/** One die's leg of a scripted throw: an arc in, two decaying hops, then rest. */
+interface Throw {
+  delay: number;
+  t: number;
+  flight: number;
+  settle: number;
+  hop: number;
+  from: THREE.Vector3;
+  to: THREE.Vector3;
+  axis: THREE.Vector3;
+  spin: number;
+  endQ: THREE.Quaternion;
+}
+
 interface Die {
   mesh: THREE.Mesh;
   body: CANNON.Body;
@@ -85,6 +100,7 @@ interface Die {
   selected: boolean;
   index: number;
   ease: Ease | null;
+  toss: Throw | null;
 }
 
 const EASE_DURATION = 0.3;
@@ -225,6 +241,9 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
   let idleFrames = 0;
   let rolling = false;
   let settleResolve: ((values: number[]) => void) | null = null;
+  let scriptedToss = false;
+  let tossing = false;
+  let scriptedResolve: (() => void) | null = null;
   let rollStart = 0;
   let stillFrames = 0;
   let currentFaces: number[] = [];
@@ -252,7 +271,7 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     });
     world.addBody(body);
     body.sleep();
-    return { mesh, body, lift: 0, liftTarget: 0, selected: false, index, ease: null };
+    return { mesh, body, lift: 0, liftTarget: 0, selected: false, index, ease: null, toss: null };
   }
 
   function ensureDice(n: number): void {
@@ -478,6 +497,157 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     settleResolve = null;
   }
 
+  /* ---------- scripted throw (server-authoritative values) ---------- */
+
+  /**
+   * Throw that lands on `values`. Each die starts one to two-and-a-half turns
+   * away from its resting orientation and unwinds that spin over the flight,
+   * so the face that comes to rest is the value by construction: the dice
+   * never have to turn over after they land.
+   */
+  function launchThrow(values: number[]): void {
+    cancelRoll();
+    cancelThrow();
+    ensureDice(values.length);
+    const targets = layoutFor(values);
+    scriptedToss = true;
+    tossing = true;
+    currentFaces = [];
+
+    dice.forEach((die, i) => {
+      const target = targets[i];
+      if (!target) return;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const axis = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5);
+      if (axis.lengthSq() < 1e-4) axis.set(1, 0, side);
+      axis.normalize();
+      const from = new THREE.Vector3(
+        target.pos.x + (Math.random() - 0.5) * 1.4,
+        2.5 + Math.random() * 0.7,
+        -1.9 - Math.random() * 1.3,
+      );
+
+      die.body.wakeUp();
+      die.body.velocity.setZero();
+      die.body.angularVelocity.setZero();
+      die.ease = null;
+      die.lift = 0;
+      die.liftTarget = 0;
+      die.selected = false;
+      die.mesh.material = faceMaterials(false);
+      die.mesh.position.copy(from);
+      die.mesh.quaternion.copy(target.quat);
+      die.body.position.set(from.x, from.y, from.z);
+      die.toss = {
+        delay: i * 0.035 + Math.random() * 0.04,
+        t: 0,
+        flight: 0.52 + Math.random() * 0.14,
+        settle: 0.26,
+        hop: 0.24 + Math.random() * 0.16,
+        from,
+        to: target.pos.clone(),
+        axis,
+        // 1.4–2.9 turns, always ending back on the target orientation.
+        spin: Math.PI * 2 * (1.4 + Math.random() * 1.5) * (Math.random() < 0.5 ? 1 : -1),
+        endQ: target.quat.clone(),
+      };
+    });
+
+    idleFrames = 0;
+    startLoop();
+  }
+
+  const spinQ = new THREE.Quaternion();
+  const wobbleQ = new THREE.Quaternion();
+
+  function stepThrow(die: Die, dt: number): void {
+    const t = die.toss;
+    if (!t) return;
+    t.t += dt;
+    const local = t.t - t.delay;
+
+    if (local < 0) return;
+
+    if (local < t.flight) {
+      const u = local / t.flight;
+      const k = u * (2 - u); // ease out: thrown fast, slowing into the table
+      die.mesh.position.lerpVectors(t.from, t.to, k);
+      die.mesh.position.y = t.from.y + (t.to.y - t.from.y) * (u * u) + 4 * 0.22 * u * (1 - u);
+      spinQ.setFromAxisAngle(t.axis, t.spin * (1 - u));
+      die.mesh.quaternion.copy(spinQ).multiply(t.endQ);
+    } else {
+      const p = Math.min(1, (local - t.flight) / t.settle);
+      let y = t.to.y;
+      if (p < 0.55) {
+        const v = p / 0.55;
+        y += 4 * t.hop * v * (1 - v);
+      } else if (p < 0.85) {
+        const v = (p - 0.55) / 0.3;
+        y += 4 * t.hop * 0.28 * v * (1 - v);
+      }
+      die.mesh.position.copy(t.to);
+      die.mesh.position.y = y;
+      // A touch of yaw as it comes to rest — pivots, never flips.
+      wobbleQ.setFromAxisAngle(UP, Math.sin(Math.PI * p) * 0.22 * (1 - p));
+      die.mesh.quaternion.copy(wobbleQ).multiply(t.endQ);
+      if (p >= 1) {
+        die.toss = null;
+        die.mesh.position.copy(t.to);
+        die.mesh.quaternion.copy(t.endQ);
+      }
+    }
+
+    die.body.position.set(die.mesh.position.x, die.mesh.position.y, die.mesh.position.z);
+    die.body.quaternion.set(
+      die.mesh.quaternion.x,
+      die.mesh.quaternion.y,
+      die.mesh.quaternion.z,
+      die.mesh.quaternion.w,
+    );
+    die.body.velocity.setZero();
+    die.body.angularVelocity.setZero();
+  }
+
+  function cancelThrow(): void {
+    scriptedToss = false;
+    tossing = false;
+    for (const die of dice) die.toss = null;
+    const done = scriptedResolve;
+    scriptedResolve = null;
+    if (done) done();
+  }
+
+  function finishThrowIfDone(): void {
+    if (!scriptedToss) return;
+    for (const die of dice) {
+      if (die.toss) return;
+    }
+    scriptedToss = false;
+    tossing = false;
+    currentFaces = dice.map((die) => quatFace(die.mesh.quaternion));
+    idleFrames = 0;
+    const done = scriptedResolve;
+    scriptedResolve = null;
+    done?.();
+  }
+
+  /** Which face is pointing up for a given orientation. */
+  function quatFace(q: THREE.Quaternion): number {
+    let best = 0;
+    let bestY = -2;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < 6; i++) {
+      const axis = AXES[i];
+      if (!axis) continue;
+      v.copy(axis).applyQuaternion(q);
+      if (v.y > bestY) {
+        bestY = v.y;
+        best = i;
+      }
+    }
+    return FACE_VALUES[best] ?? 1;
+  }
+
   function finishRoll(): void {
     rolling = false;
     const values = dice.map(snapDie);
@@ -509,6 +679,10 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     world.step(1 / 60, dt, 6);
 
     for (const die of dice) {
+      if (die.toss) {
+        stepThrow(die, dt);
+        continue;
+      }
       const ease = die.ease;
       if (ease) {
         ease.t = Math.min(1, ease.t + dt / ease.dur);
@@ -535,10 +709,11 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     }
 
     if (rolling) checkSettle(now);
+    if (scriptedToss) finishThrowIfDone();
     renderer.render(scene, camera);
 
     idleFrames++;
-    if (!rolling && !dice.some((die) => die.ease) && idleFrames > 45) stopLoop();
+    if (!rolling && !scriptedToss && !dice.some((die) => die.ease) && idleFrames > 45) stopLoop();
   }
 
   function startLoop(): void {
@@ -587,7 +762,7 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   function pick(event: MouseEvent): void {
-    if (!dice.length || rolling || !interactive) return;
+    if (!dice.length || rolling || scriptedToss || !interactive) return;
     const rect = canvas.getBoundingClientRect();
     ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -620,12 +795,16 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
         settleResolve = resolve;
       });
     },
-    toss(n: number): void {
-      if (disposed) return;
-      launch(n);
+    toss(values: number[]): Promise<void> {
+      if (disposed || values.length === 0) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        launchThrow(values);
+        scriptedResolve = resolve;
+      });
     },
     show(values: number[], selected: boolean[] = []): void {
       if (disposed) return;
+      if (scriptedToss) cancelThrow();
       const same =
         values.length === currentFaces.length &&
         values.every((value, i) => value === currentFaces[i]) &&
@@ -652,7 +831,8 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
     },
     clear(): void {
       if (disposed) return;
-      if (!rolling && !dice.length && !currentFaces.length) return;
+      if (!rolling && !scriptedToss && !dice.length && !currentFaces.length) return;
+      cancelThrow();
       cancelRoll();
       ensureDice(0);
       currentFaces = [];
@@ -663,6 +843,7 @@ export function createDiceTable(container: HTMLElement, options: DiceTableOption
       disposed = true;
       rolling = false;
       settleResolve = null;
+      cancelThrow();
       stopLoop();
       canvas.removeEventListener("click", pick);
       window.removeEventListener("resize", onWindowResize);

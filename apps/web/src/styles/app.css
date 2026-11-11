@@ -478,6 +478,10 @@ p {
   gap: 8px;
   padding: 10px 0;
   border-top: 1px solid #eadfd7;
+  transition: opacity 0.2s ease;
+}
+.readout.is-waiting {
+  opacity: 0.35;
 }
 .readout-group {
   display: flex;
