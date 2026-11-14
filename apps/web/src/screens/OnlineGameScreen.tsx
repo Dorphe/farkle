@@ -13,6 +13,7 @@ import type { RoomView } from "@farkle/protocol";
 import { isMyTurn, useOnline } from "@/store/online.ts";
 import { useSession } from "@/store/session.ts";
 import { DieButton, GhostDice, MiniDie } from "@/components/Die.tsx";
+import { BankFlash, useBankFlash } from "@/components/BankFlash.tsx";
 import { WinnerScreen } from "@/components/WinnerScreen.tsx";
 import { ScoreboardSheet } from "@/components/ScoreboardSheet.tsx";
 import { playCue, haptic } from "@/lib/audio.ts";
@@ -56,6 +57,7 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
   const expectRollRef = useRef(false);
 
   const game = room.game;
+  const bankFlash = useBankFlash(game);
   const currentIndex = game?.turn ?? 0;
   const current = game ? currentPlayer(game) : null;
   const mine = Boolean(game && room.phase === "playing" && room.seats[currentIndex]?.id === playerId);
@@ -309,7 +311,10 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
     .filter(({ index }) => index !== currentIndex);
 
   return (
-    <section className="screen game-screen online-game" aria-label="Online game table">
+    <section
+      className={`screen game-screen online-game${settings.reducedMotion ? " is-reduced" : ""}`}
+      aria-label="Online game table"
+    >
       <header className="topbar">
         <span className="wordmark">Farkle</span>
         <div className="online-head-actions">
@@ -346,7 +351,7 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
       ) : null}
 
       <div className="turn-card-wrap">
-        <div className={`turn-card ${mine ? "is-mine" : ""}`}>
+        <div className={`turn-card ${mine ? "is-mine" : ""}`} key={game.turn}>
           <span className="avatar-lg" style={{ background: avatarColor(currentIndex) }} aria-hidden="true">
             {player.name.slice(0, 1).toUpperCase()}
           </span>
@@ -395,6 +400,7 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
             ))}
           </div>
         ) : null}
+        <BankFlash flash={bankFlash} />
       </div>
 
       <div className={`readout ${tossing ? "is-waiting" : ""}`}>

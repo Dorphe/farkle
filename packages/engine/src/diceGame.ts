@@ -322,6 +322,13 @@ export function reduce(state: DiceGameState, action: DiceGameAction): ReduceResu
       player.streak = 0;
       player.turns += 1;
 
+      // Carried through the turn change: the table needs to see what was banked
+      // (and only the win path below overrides it).
+      const bankText =
+        credited === 0 && before === 0
+          ? `${player.name} banks ${scored.toLocaleString("en-US")} — below the ${next.config.entryThreshold.toLocaleString("en-US")} entry`
+          : `${player.name} banks ${credited.toLocaleString("en-US")}`;
+
       if (next.config.winCondition === "first" && player.score >= next.config.target) {
         next.phase = "gameOver";
         next.winnerId = player.id;
@@ -343,10 +350,7 @@ export function reduce(state: DiceGameState, action: DiceGameAction): ReduceResu
         next.lastEvent = {
           kind: "bank",
           playerId: player.id,
-          text:
-            credited === 0 && before === 0
-              ? `${player.name} banks ${scored.toLocaleString("en-US")} — below the ${next.config.entryThreshold.toLocaleString("en-US")} entry`
-              : `${player.name} banks ${credited.toLocaleString("en-US")}`,
+          text: bankText,
           delta: credited,
         };
         next.turnScore = 0;
@@ -358,7 +362,13 @@ export function reduce(state: DiceGameState, action: DiceGameAction): ReduceResu
         return ok(next);
       }
 
-      endTurn(next);
+      advanceTurn(next);
+      next.lastEvent = {
+        kind: "bank",
+        playerId: player.id,
+        text: bankText,
+        delta: credited,
+      };
       return ok(next);
     }
 

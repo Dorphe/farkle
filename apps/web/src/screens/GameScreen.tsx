@@ -12,6 +12,7 @@ import {
 import type { DiceTable } from "@farkle/dice";
 import { useSession } from "@/store/session.ts";
 import { DieButton, GhostDice } from "@/components/Die.tsx";
+import { BankFlash, useBankFlash } from "@/components/BankFlash.tsx";
 import { FarkleOverlay } from "@/components/FarkleOverlay.tsx";
 import { WinnerScreen } from "@/components/WinnerScreen.tsx";
 import { ScoreboardSheet } from "@/components/ScoreboardSheet.tsx";
@@ -75,6 +76,8 @@ export function GameScreen() {
 
   gameRef.current = game;
   busyRef.current = busy;
+
+  const bankFlash = useBankFlash(game);
 
   const toggle = useCallback(
     (index: number) => {
@@ -376,7 +379,10 @@ export function GameScreen() {
           : "Press Roll to start the turn.";
 
   return (
-    <section className="screen game-screen" aria-label="Game table">
+    <section
+      className={`screen game-screen${settings.reducedMotion ? " is-reduced" : ""}`}
+      aria-label="Game table"
+    >
       <header className="topbar">
         <span className="wordmark">Farkle</span>
         <div style={{ display: "flex", gap: 8 }}>
@@ -402,7 +408,7 @@ export function GameScreen() {
       ) : null}
 
       <div className="turn-card-wrap">
-        <div className="turn-card">
+        <div className="turn-card" key={game.turn}>
           <span className="avatar-lg" style={{ background: avatarColor(currentIndex) }} aria-hidden="true">
             {player.name.slice(0, 1).toUpperCase()}
           </span>
@@ -451,6 +457,7 @@ export function GameScreen() {
             ))}
           </div>
         ) : null}
+        <BankFlash flash={bankFlash} />
       </div>
 
       <div className="readout">

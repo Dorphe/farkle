@@ -99,6 +99,9 @@ describe("dice-turn reducer", () => {
     expect(banked.state.players[0]?.score).toBe(100);
     expect(banked.state.turn).toBe(1);
     expect(banked.state.phase).toBe("awaitingRoll");
+    // The turn moves on, but the bank event stays live for the table to show.
+    expect(banked.state.lastEvent).toMatchObject({ kind: "bank", playerId: "p1", delta: 100 });
+    expect(banked.state.lastEvent?.text).toMatch(/banks 100/);
   });
 
   it("rejects invalid selections and out-of-phase actions", () => {

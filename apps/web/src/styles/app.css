@@ -338,6 +338,7 @@ p {
   padding: 16px;
   background: var(--card);
   border-radius: var(--r-card);
+  animation: turn-card-in 0.26s cubic-bezier(0.2, 0.8, 0.3, 1) both;
 }
 .avatar-lg {
   flex: none;
@@ -2333,5 +2334,88 @@ p {
   }
   .score-screen .key {
     height: 56px;
+  }
+}
+
+/* ---------- turn change + banked points ---------- */
+.bank-flash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 16px;
+  border-radius: 18px;
+  background: var(--accent-strong);
+  color: var(--accent-ink);
+  box-shadow: 0 12px 28px rgba(43, 34, 32, 0.24);
+  pointer-events: none;
+  animation: bank-float 1.8s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+.bank-flash-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+.bank-flash-amount {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.7px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+/* the app's own motion setting, alongside the OS preference */
+.game-screen.is-reduced .turn-card,
+.game-screen.is-reduced .bank-flash {
+  animation: none;
+}
+
+@keyframes turn-card-in {
+  from {
+    opacity: 0.4;
+    transform: translateY(5px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bank-float {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -30%) scale(0.86);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  24% {
+    transform: translate(-50%, -52%) scale(1);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(-50%, -72%);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -108%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bank-flash {
+    opacity: 1;
+    animation: none;
   }
 }
