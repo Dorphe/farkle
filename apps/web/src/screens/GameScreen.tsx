@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import {
   currentPlayer,
@@ -11,7 +11,7 @@ import {
 } from "@farkle/engine";
 import type { DiceTable } from "@farkle/dice";
 import { useSession } from "@/store/session.ts";
-import { DieButton, GhostDice } from "@/components/Die.tsx";
+import { DieButton, GhostDice, MiniDie } from "@/components/Die.tsx";
 import { BankFlash, useBankFlash } from "@/components/BankFlash.tsx";
 import { FarkleOverlay } from "@/components/FarkleOverlay.tsx";
 import { WinnerScreen } from "@/components/WinnerScreen.tsx";
@@ -44,6 +44,9 @@ function hasWebGL(): boolean {
 
 const prefersReducedMotion = () =>
   window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+/** Kept in step with --flight-ms in app.css: how long a die takes to reach the rack. */
+const FLIGHT_MS = 340;
 
 export function GameScreen() {
   const navigate = useNavigate();
@@ -78,6 +81,75 @@ export function GameScreen() {
   busyRef.current = busy;
 
   const bankFlash = useBankFlash(game);
+
+  const screenRef = useRef<HTMLElement>(null);
+  const flightRef = useRef<{ nodes: HTMLButtonElement[]; from: number } | null>(null);
+
+  /**
+   * Clones the dice the player is keeping and leaves them on screen long enough
+   * to fly into the rack. Runs before the state change so it can still measure
+   * the dice; the clones are parked at their table position and only animated
+   * once the rack has rendered the slots they are heading for.
+   */
+  const startDieFlight = useCallback((from: number) => {
+    const root = screenRef.current;
+    if (!root) return;
+    if (useSession.getState().settings.reducedMotion || prefersReducedMotion()) return;
+    const dice = Array.from(
+      root.querySelectorAll<HTMLButtonElement>(".dice-grid .die[aria-pressed='true']"),
+    );
+    if (dice.length === 0) return;
+    const nodes = dice.map((die) => {
+      const box = die.getBoundingClientRect();
+      const clone = die.cloneNode(true) as HTMLButtonElement;
+      clone.classList.add("die-flight");
+      clone.tabIndex = -1;
+      clone.setAttribute("aria-hidden", "true");
+      clone.style.left = `${box.left}px`;
+      clone.style.top = `${box.top}px`;
+      clone.style.width = `${box.width}px`;
+      clone.style.height = `${box.height}px`;
+      // The clone lives on <body>, outside the screen's custom properties.
+      clone.style.transitionDuration = `${FLIGHT_MS}ms`;
+      document.body.appendChild(clone);
+      return clone;
+    });
+    flightRef.current = { nodes, from };
+  }, []);
+
+  const cancelDieFlight = useCallback(() => {
+    const flight = flightRef.current;
+    flightRef.current = null;
+    flight?.nodes.forEach((node) => node.remove());
+  }, []);
+
+  // The rack has rendered its new slots: send each clone to its own slot.
+  useLayoutEffect(() => {
+    const flight = flightRef.current;
+    if (!flight) return;
+    flightRef.current = null;
+    const root = screenRef.current;
+    const slots = root ? Array.from(root.querySelectorAll<HTMLElement>(".rack-slot")) : [];
+    flight.nodes.forEach((node, index) => {
+      const slot = slots[flight.from + index];
+      if (!slot) {
+        node.remove();
+        return;
+      }
+      const to = slot.getBoundingClientRect();
+      const left = Number.parseFloat(node.style.left);
+      const top = Number.parseFloat(node.style.top);
+      const width = Number.parseFloat(node.style.width);
+      node.classList.add("is-flying");
+      // Commit the start position first, otherwise the browser only ever sees
+      // the final transform and the die teleports into the rack.
+      void node.offsetWidth;
+      node.style.transform = `translate(${to.left - left}px, ${to.top - top}px) scale(${
+        to.width / width
+      })`;
+      window.setTimeout(() => node.remove(), FLIGHT_MS + 120);
+    });
+  }, [game?.kept.length]);
 
   const toggle = useCallback(
     (index: number) => {
@@ -167,8 +239,12 @@ export function GameScreen() {
     if (!current) return;
 
     if (current.phase === "awaitingKeep") {
+      startDieFlight(current.kept.length);
       const kept = dispatch({ type: "keep" });
-      if (!kept.ok) return;
+      if (!kept.ok) {
+        cancelDieFlight();
+        return;
+      }
       haptic(12);
       current = useSession.getState().game;
     }
@@ -353,17 +429,10 @@ export function GameScreen() {
   }
   if (game.phase === "turnEnd" || game.phase === "gameOver") rollDisabled = true;
 
-  let bankLabel = "Bank";
   let bankDisabled = true;
   if (game.phase === "awaitingKeep") {
-    if (selection !== null && selection > 0) {
-      bankLabel = `Bank ${fmt(total)}`;
-      bankDisabled = false;
-    } else {
-      bankLabel = "Bank —";
-    }
+    bankDisabled = !(selection !== null && selection > 0);
   } else if (game.phase === "awaitingRoll" && game.turnScore > 0) {
-    bankLabel = `Bank ${fmt(game.turnScore)}`;
     bankDisabled = false;
   }
   if (game.phase === "turnEnd" || game.phase === "gameOver") bankDisabled = true;
@@ -380,6 +449,7 @@ export function GameScreen() {
 
   return (
     <section
+      ref={screenRef}
       className={`screen game-screen${settings.reducedMotion ? " is-reduced" : ""}`}
       aria-label="Game table"
     >
@@ -420,82 +490,98 @@ export function GameScreen() {
         </div>
       </div>
 
-      <div className="tray">
-        <div className="dice-table" ref={tableHostRef} />
-        {!use3D &&
-          (game.phase === "awaitingKeep" && game.roll.length ? (
-            <div className="dice-grid" role="group" aria-label="Dice on the table">
-              {game.roll.map((face: Face, index: number) => (
-                <DieButton
-                  key={`${index}-${face}`}
-                  face={face}
-                  index={index}
-                  selected={game.selected[index] ?? false}
-                  onToggle={toggle}
-                />
+      <div className="tray game-tray">
+        <div className="table-card">
+          <div className="dice-area">
+            <div className="dice-table" ref={tableHostRef} />
+            {!use3D &&
+              (game.phase === "awaitingKeep" && game.roll.length ? (
+                <div className="dice-grid" role="group" aria-label="Dice on the table">
+                  {game.roll.map((face: Face, index: number) => (
+                    <DieButton
+                      key={`${index}-${face}`}
+                      face={face}
+                      index={index}
+                      selected={game.selected[index] ?? false}
+                      onToggle={toggle}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
               ))}
-            </div>
-          ) : (
-            <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
-          ))}
-        {use3D && game.phase === "awaitingRoll" ? (
-          <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
-        ) : null}
-        {use3D && game.phase !== "awaitingKeep" ? <p className="tray-hint">{hint}</p> : null}
-        {!use3D && game.phase !== "awaitingKeep" ? <p className="tray-hint">{hint}</p> : null}
-
-        {use3D && game.phase === "awaitingKeep" ? (
-          <div className="sr-only" role="group" aria-label="Dice on the table">
-            {game.roll.map((face, index) => (
-              <button
-                key={`sr-${index}-${face}`}
-                type="button"
-                aria-pressed={game.selected[index] ?? false}
-                aria-label={`Die ${index + 1}, value ${face}${game.selected[index] ? ", kept" : ""}`}
-                onClick={() => toggle(index)}
-              />
-            ))}
+            {use3D && game.phase === "awaitingRoll" ? (
+              <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
+            ) : null}
+            {use3D && game.phase === "awaitingKeep" ? (
+              <div className="sr-only" role="group" aria-label="Dice on the table">
+                {game.roll.map((face, index) => (
+                  <button
+                    key={`sr-${index}-${face}`}
+                    type="button"
+                    aria-pressed={game.selected[index] ?? false}
+                    aria-label={`Die ${index + 1}, value ${face}${game.selected[index] ? ", kept" : ""}`}
+                    onClick={() => toggle(index)}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
-        ) : null}
+
+          <p className={`keeping${selection !== null && selection > 0 ? " is-live" : ""}`}>
+            {selection !== null && selection > 0 ? (
+              <>
+                Keeping <b>{fmt(selection)}</b>
+              </>
+            ) : (
+              <span className="keeping-hint">
+                {game.phase === "awaitingKeep"
+                  ? selection === null
+                    ? "Not a scoring set"
+                    : "Tap dice to keep"
+                  : hint}
+              </span>
+            )}
+          </p>
+
+          <button
+            ref={rollBtnRef}
+            type="button"
+            className="roll-btn"
+            onClick={() => void rollNow()}
+            disabled={rollDisabled}
+          >
+            {rollLabel}
+          </button>
+        </div>
+
+        <div className="rack-card">
+          <div className="rack-row">
+            {Array.from({ length: 6 }, (_, slot) => {
+              const face = game.kept[slot];
+              return (
+                <span key={slot} className={`rack-slot${face !== undefined ? " is-filled" : ""}`}>
+                  {face !== undefined ? <MiniDie face={face} /> : null}
+                </span>
+              );
+            })}
+            <span className="rack-score" aria-label={`${fmt(game.turnScore)} on the table`}>
+              {fmt(game.turnScore)}
+            </span>
+          </div>
+          <button
+            ref={bankBtnRef}
+            type="button"
+            className="end-turn-btn"
+            onClick={bank}
+            disabled={bankDisabled}
+            aria-label={bankDisabled ? "End turn" : `End turn and bank ${fmt(total)}`}
+          >
+            End turn
+          </button>
+        </div>
+
         <BankFlash flash={bankFlash} />
-      </div>
-
-      <div className="readout">
-        <div className="readout-group">
-          <span className="readout-label">SELECTED</span>
-          <span className={`readout-value ${selection !== null && selection > 0 ? "accent" : ""}`}>
-            {selection === null ? "—" : fmt(selection)}
-          </span>
-        </div>
-        <div className="readout-group">
-          <span className="readout-label">ON THE TABLE</span>
-          <span className="readout-value">{fmt(game.turnScore)}</span>
-        </div>
-        <div className="readout-group">
-          <span className="readout-label">FARKLES</span>
-          <span className="readout-value soft">{player.streak} / 3</span>
-        </div>
-      </div>
-
-      <div className="actions">
-        <button
-          ref={rollBtnRef}
-          type="button"
-          className="btn-action primary"
-          onClick={() => void rollNow()}
-          disabled={rollDisabled}
-        >
-          {rollLabel}
-        </button>
-        <button
-          ref={bankBtnRef}
-          type="button"
-          className="btn-action secondary"
-          onClick={bank}
-          disabled={bankDisabled}
-        >
-          {bankLabel}
-        </button>
       </div>
 
       <div className="game-foot">
@@ -514,7 +600,7 @@ export function GameScreen() {
           <span />
         )}
         <span className="foot-note">
-          {game.config.target.toLocaleString("en-US")} to win
+          {player.streak} / 3 farkles · {game.config.target.toLocaleString("en-US")} to win
           {game.suddenDeath ? " · sudden death" : ""}
         </span>
       </div>
