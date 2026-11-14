@@ -98,7 +98,7 @@ export function OnlineLobbyScreen({ room, playerId }: { room: RoomView; playerId
       <div className="setup-scroll">
         <div className="hero">
           <h1 id="lobby-title">
-            The table is
+            The table is{" "}
             <span>open.</span>
           </h1>
         </div>
