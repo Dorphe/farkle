@@ -73,16 +73,26 @@ Tokens are in `apps/web/src/styles/tokens.css`. Two contrast-safe adjustments we
 
 ## Deploy
 
-GitHub Pages serves `main` from the repository root. The Vite build uses the default `/` base, so the app is the site root; `404.html` is a copy of the shell so deep links such as `/local/game` and `/join/5T1S` boot the SPA on Pages.
+Pushing to `main` publishes the site. `.github/workflows/deploy-pages.yml` installs,
+builds `apps/web` and uploads `apps/web/dist` as the Pages artifact — nothing is
+committed back to the repository, so shipping is just merging a branch.
+
+One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+The custom domain `farkle.mathieu.cc` lives in that same Pages panel, not in a
+`CNAME` file inside the artifact.
+
+The room server URL comes from the `VITE_SERVER_URL` repository variable
+(Settings → Secrets and variables → Actions → Variables) and falls back to
+`https://farkle-online.mathieu.cc`. The Vite build uses the default `/` base, so
+the app is the site root; the workflow copies `index.html` to `404.html` so deep
+links such as `/local/game` and `/join/5T1S` boot the SPA on Pages.
+
+To check a build before pushing it:
 
 ```bash
 VITE_SERVER_URL=https://<your-room-server> pnpm --filter @farkle/web build
-rm -rf assets icons manifest.webmanifest sw.js workbox-*.js
-cp -R apps/web/dist/. .
-cp index.html 404.html
+pnpm --filter @farkle/web preview
 ```
-
-Then commit and push. Pages rebuilds from `main`; `CNAME` keeps the custom domain.
 
 The room server is a separate Node process (`apps/server`). It keeps rooms in
 memory only, so a restart ends every live room — that is the intended
