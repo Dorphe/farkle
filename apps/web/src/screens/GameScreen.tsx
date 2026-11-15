@@ -492,7 +492,7 @@ export function GameScreen() {
 
       <div className="tray game-tray">
         <div className="table-card">
-          <div className="dice-area">
+          <div className={`dice-area${use3D ? " is-3d" : ""}`}>
             <div className="dice-table" ref={tableHostRef} />
             {!use3D &&
               (game.phase === "awaitingKeep" && game.roll.length ? (

@@ -581,6 +581,10 @@ p {
   justify-content: center;
   padding: 6px 0;
 }
+/* the 3D table renders the dice inside this box, so it needs real depth */
+.dice-area.is-3d {
+  min-height: 244px;
+}
 .keeping {
   display: flex;
   align-items: baseline;
@@ -745,6 +749,9 @@ p {
   .dice-area {
     min-height: 0;
     padding: 0;
+  }
+  .dice-area.is-3d {
+    min-height: 196px;
   }
   .dice-grid {
     max-width: 286px;
