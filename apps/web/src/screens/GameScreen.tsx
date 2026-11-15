@@ -13,7 +13,6 @@ import type { DiceTable } from "@farkle/dice";
 import { useSession } from "@/store/session.ts";
 import { DieButton, GhostDice, MiniDie } from "@/components/Die.tsx";
 import { BankFlash, useBankFlash } from "@/components/BankFlash.tsx";
-import { FarkleOverlay } from "@/components/FarkleOverlay.tsx";
 import { WinnerScreen } from "@/components/WinnerScreen.tsx";
 import { ScoreboardSheet } from "@/components/ScoreboardSheet.tsx";
 import { GameMenu } from "@/components/GameMenu.tsx";
@@ -485,7 +484,14 @@ export function GameScreen() {
         <div className="table-card">
           <div className={`dice-area${use3D ? " is-3d" : ""}`}>
             <div className="dice-table" ref={tableHostRef} />
-            {!use3D &&
+            {game.phase === "turnEnd" ? (
+              <div className="busted-dice" aria-hidden="true">
+                {game.roll.map((face: Face, index: number) => (
+                  <MiniDie key={index} face={face} />
+                ))}
+              </div>
+            ) : null}
+            {game.phase !== "turnEnd" && !use3D &&
               (game.phase === "awaitingKeep" && game.roll.length ? (
                 <div className="dice-grid" role="group" aria-label="Dice on the table">
                   {game.roll.map((face: Face, index: number) => (
@@ -519,34 +525,52 @@ export function GameScreen() {
             ) : null}
           </div>
 
-          <p className={`keeping${selection !== null && selection > 0 ? " is-live" : ""}`}>
-            {selection !== null && selection > 0 ? (
-              <>
-                Keeping <b>{fmt(selection)}</b>
-              </>
-            ) : (
-              <span className="keeping-hint">
-                {game.phase === "awaitingKeep"
-                  ? selection === null
-                    ? "Not a scoring set"
-                    : "Tap dice to keep"
-                  : hint}
-              </span>
-            )}
-          </p>
+          {game.phase === "turnEnd" ? (
+            <div className="farkle-stack">
+              <span className="farkle-word">Farkle!</span>
+              <span className="farkle-hint">You lose your turn.</span>
+            </div>
+          ) : (
+            <p className={`keeping${selection !== null && selection > 0 ? " is-live" : ""}`}>
+              {selection !== null && selection > 0 ? (
+                <>
+                  Keeping <b>{fmt(selection)}</b>
+                </>
+              ) : (
+                <span className="keeping-hint">
+                  {game.phase === "awaitingKeep"
+                    ? selection === null
+                      ? "Not a scoring set"
+                      : "Tap dice to keep"
+                    : hint}
+                </span>
+              )}
+            </p>
+          )}
 
-          <button
-            ref={rollBtnRef}
-            type="button"
-            className="roll-btn"
-            onClick={() => void rollNow()}
-            disabled={rollDisabled}
-          >
-            {rollLabel}
-          </button>
+          {game.phase === "turnEnd" ? (
+            <button
+              type="button"
+              className="end-turn-btn"
+              autoFocus
+              onClick={() => dispatch({ type: "nextTurn" })}
+            >
+              Next player
+            </button>
+          ) : (
+            <button
+              ref={rollBtnRef}
+              type="button"
+              className="roll-btn"
+              onClick={() => void rollNow()}
+              disabled={rollDisabled}
+            >
+              {rollLabel}
+            </button>
+          )}
         </div>
 
-        <div className="rack-card">
+        {game.phase === "turnEnd" ? null : <div className="rack-card">
           <div className="rack-row">
             {Array.from({ length: 6 }, (_, slot) => {
               const face = game.kept[slot];
@@ -570,7 +594,7 @@ export function GameScreen() {
           >
             End turn
           </button>
-        </div>
+        </div>}
 
         <BankFlash flash={bankFlash} />
       </div>
@@ -614,10 +638,6 @@ export function GameScreen() {
       <p className="sr-only" aria-live="polite">
         {game.lastEvent?.text ?? ""}
       </p>
-
-      {game.phase === "turnEnd" ? (
-        <FarkleOverlay game={game} onNext={() => dispatch({ type: "nextTurn" })} />
-      ) : null}
 
       {game.phase === "gameOver" ? (
         <WinnerScreen

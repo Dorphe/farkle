@@ -6,6 +6,7 @@ import { RulesSheet } from "@/components/RulesSheet.tsx";
 import { avatarColor } from "@/screens/SetupScreen.tsx";
 import { GameMenu } from "@/components/GameMenu.tsx";
 import { ModeTabs, TopBar } from "@/components/AppChrome.tsx";
+import { EditIcon, PlusIcon } from "@/components/Icons.tsx";
 
 const PRESET_LABELS: Record<PresetName | "custom", string> = {
   classic: "Classic",
@@ -68,10 +69,6 @@ export function ScoreSetupScreen() {
       <div className="setup-scroll">
         <div className="roster-wrap">
           <div className="roster-card">
-            <div className="roster-head">
-              <h2 className="roster-heading">PLAYERS</h2>
-              <span className="roster-count">{scoreRoster.length} of 8</span>
-            </div>
             {scoreRoster.length === 0 ? (
               <p className="empty-note">No one at the table yet. Add two players to start.</p>
             ) : (
@@ -105,8 +102,13 @@ export function ScoreSetupScreen() {
                 maxLength={18}
                 disabled={scoreRoster.length >= 8}
               />
-              <button type="submit" className="btn-add" disabled={scoreRoster.length >= 8 || !name.trim()}>
-                Add
+              <button
+                type="submit"
+                className="btn-add"
+                disabled={scoreRoster.length >= 8 || !name.trim()}
+                aria-label="Add player"
+              >
+                <PlusIcon />
               </button>
             </form>
           </div>
@@ -117,12 +119,14 @@ export function ScoreSetupScreen() {
           ) : null}
           <button type="button" className="rule-summary" onClick={() => setRulesOpen(true)}>
             <span>
-              <span className="rule-summary-label">HOUSE RULES</span>
+              <span className="rule-summary-label">RULESET</span>
               <span className="rule-summary-value">
-                {PRESET_LABELS[presetName]} · {draftConfig.target.toLocaleString("en-US")} to win
+                {PRESET_LABELS[presetName]} ({draftConfig.target.toLocaleString("en-US")} to win)
               </span>
             </span>
-            <span className="rule-summary-change">Change</span>
+            <span className="rule-summary-edit" aria-hidden="true">
+              <EditIcon />
+            </span>
           </button>
         </div>
       </div>

@@ -1,21 +1,19 @@
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { DotsIcon } from "./Icons.tsx";
 
 /**
- * The pen's `Top bar` component: wordmark on the left, one pill on the right.
- * The pill is labelled "Menu" in the design, and every table screen opens the
- * same sheet from it.
+ * The pen's `Top bar` component: wordmark on the left, one 32px icon button on
+ * the right that opens the menu sheet.
  */
 export function TopBar({
   onMenu,
-  menuLabel = "Menu",
-  label = "Table menu",
+  label = "Open menu",
   children,
 }: {
   onMenu: () => void;
-  menuLabel?: string;
   label?: string;
-  /** Extra pills rendered before the menu pill, inside the same 8px group. */
+  /** Extra pills rendered before the menu button, inside the same 8px group. */
   children?: ReactNode;
 }) {
   return (
@@ -23,8 +21,8 @@ export function TopBar({
       <span className="wordmark">Farkle</span>
       <div className="topbar-actions">
         {children}
-        <button type="button" className="pill" onClick={onMenu} aria-label={label}>
-          {menuLabel}
+        <button type="button" className="icon-btn" onClick={onMenu} aria-label={label}>
+          <DotsIcon />
         </button>
       </div>
     </header>

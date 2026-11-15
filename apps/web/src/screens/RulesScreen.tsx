@@ -62,7 +62,7 @@ export function RulesScreen() {
             </div>
             <div className="score-row">
               <span className="score-rule">Four / five / six of a kind</span>
-              <span className="score-points accent">×2 / ×4 / ×8</span>
+              <span className="score-points">×2 / ×4 / ×8</span>
             </div>
             {config.straight !== null ? (
               <div className="score-row">
@@ -85,7 +85,7 @@ export function RulesScreen() {
             {config.farklePenalty > 0 ? (
               <div className="score-row">
                 <span className="score-rule">Three farkles in a row</span>
-                <span className="score-points accent">
+                <span className="score-points">
                   −{config.farklePenalty.toLocaleString("en-US")}
                 </span>
               </div>

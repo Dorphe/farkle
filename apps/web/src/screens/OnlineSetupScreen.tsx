@@ -8,6 +8,7 @@ import { RulesSheet } from "@/components/RulesSheet.tsx";
 import { PRESET_LABELS } from "@/screens/SetupScreen.tsx";
 import { GameMenu } from "@/components/GameMenu.tsx";
 import { ModeTabs, TopBar } from "@/components/AppChrome.tsx";
+import { EditIcon } from "@/components/Icons.tsx";
 
 export function OnlineSetupScreen() {
   const navigate = useNavigate();
@@ -153,12 +154,14 @@ export function OnlineSetupScreen() {
 
         <button type="button" className="rule-summary" onClick={() => setRulesOpen(true)}>
           <span>
-            <span className="rule-summary-label">HOUSE RULES</span>
+            <span className="rule-summary-label">RULESET</span>
             <span className="rule-summary-value">
-              {PRESET_LABELS[presetName]} · {draftConfig.target.toLocaleString("en-US")} to win
+              {PRESET_LABELS[presetName]} ({draftConfig.target.toLocaleString("en-US")} to win)
             </span>
           </span>
-          <span className="rule-summary-change">Change</span>
+          <span className="rule-summary-edit" aria-hidden="true">
+            <EditIcon />
+          </span>
         </button>
 
         <p className="hint online-note">

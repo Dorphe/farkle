@@ -8,58 +8,56 @@
 
 :root {
   /* ---------- Pen variables ----------
-     The eight tokens defined in farkle-design.pen (its `variables` block).
+     The tokens declared in farkle-design.pen (its `variables` block).
      Everything below aliases them, so changing a value here moves the whole
      app with it. */
-  --color-accent: #d4715b;
-  --color-surface-primary: #faf5f0;
-  --color-surface-secondary: #ffffff;
-  --color-surface-tertiary: #fbe4da;
-  --color-text-primary: #2b2220;
-  --color-text-secondary: #8b7f79;
+  --color-accent: #333333;
+  --color-surface-primary: #ffffff;
+  --color-surface-secondary: #f7f7f7;
+  --color-surface-tertiary: #ffded6;
+  --color-text-primary: #333333;
+  --color-text-secondary: #7d7d7d;
   --color-text-emphasis: #d4715b;
-  --color-stroke-primary: #f3eae4;
+  --color-stroke-primary: #e6e6e6;
+  --color-text-inverted: #ffffff;
 
-  /* ---------- Shades the eight solid tokens can't express ----------
-     Gradient stop, body copy, and the contrast-safe adjustments the pen's
-     palette needs at small sizes. */
-  --color-surface-deep: #ece1d8;
-  --color-text-body: #4a403b;
-  --color-text-muted: #6e625c; /* contrast-safe stand-in for #8B7F79 at small sizes */
-  --color-text-faint: #b09f97;
-  --color-field: #fbf6f2;
-  --color-accent-strong: #b2523c; /* interactive fill; keeps cream text at AA */
-  --color-accent-deep: #a34f3a;
-  --color-accent-ink: #fff8f5;
-  --color-line: #f0e5de;
-  --color-night-soft: #d8c9c2;
-  --color-night-kicker: #a08f88;
-  --color-night-accent: #e98a70;
+  /* Corner scale from the pen (`corner/1`–`corner/4`). */
+  --corner-1: 4px;
+  --corner-2: 8px;
+  --corner-3: 12px;
+  --corner-4: 16px;
+
+  /* ---------- Shades the solid tokens don't cover ---------- */
+  --color-avatar-tan: #f7c9a9;
+  --color-danger: #a34f3a;
+  --color-tab-wash: #fbe4da;
+  --color-tab-ink: #d4715b;
 
   /* ---------- App aliases ---------- */
   --bg-top: var(--color-surface-primary);
-  --bg-bottom: var(--color-surface-deep);
+  --bg-bottom: var(--color-surface-primary);
   --ink: var(--color-text-primary);
-  --body: var(--color-text-body);
-  --muted: var(--color-text-muted);
+  --body: var(--color-text-primary);
+  --muted: var(--color-text-secondary);
   --muted-soft: var(--color-text-secondary);
-  --faint: var(--color-text-faint);
+  --faint: var(--color-text-secondary);
 
   --card: var(--color-surface-secondary);
-  --line: var(--color-line);
+  --line: var(--color-stroke-primary);
   --line-soft: var(--color-stroke-primary);
-  --field: var(--color-field);
+  --field: var(--color-surface-primary);
 
-  --accent: var(--color-accent);
-  --accent-strong: var(--color-accent-strong);
-  --accent-ink: var(--color-accent-ink);
+  /* Accent is the dark button fill; the terracotta is emphasis only. */
+  --accent: var(--color-text-emphasis);
+  --accent-strong: var(--color-accent);
+  --accent-ink: var(--color-text-inverted);
   --accent-wash: var(--color-surface-tertiary);
-  --accent-deep: var(--color-accent-deep);
+  --accent-deep: var(--color-danger);
 
   --night: var(--color-text-primary);
-  --night-soft: var(--color-night-soft);
-  --night-kicker: var(--color-night-kicker);
-  --night-accent: var(--color-night-accent);
+  --night-soft: #cfcfcf;
+  --night-kicker: #9a9a9a;
+  --night-accent: var(--color-text-emphasis);
 
   --avatar-1: #f7c9a9;
   --avatar-2: #b9dcc1;
@@ -68,8 +66,9 @@
   --avatar-5: #f6e2a8;
   --avatar-6: #bcd7ea;
 
-  --r-card: 26px;
-  --r-tile: 22px;
+  --r-card: var(--corner-4);
+  --r-tile: var(--corner-4);
+  --r-icon: var(--corner-3);
   --r-die: 22px;
   --r-slot: 10px;
   --r-pill: 999px;
