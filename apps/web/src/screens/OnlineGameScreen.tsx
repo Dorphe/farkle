@@ -524,6 +524,17 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
               </button>
             </div>
             <div className="menu-card">
+              <button
+                type="button"
+                className="menu-row"
+                onClick={() => {
+                  setMenuOpen(false);
+                  navigate("/rules");
+                }}
+              >
+                <b>How to play</b>
+                <span>Scoring table and house rules</span>
+              </button>
               <button type="button" className="menu-row" onClick={() => void invite()}>
                 <b>Invite a player</b>
                 <span>Share the /join/{room.code} link</span>

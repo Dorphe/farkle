@@ -20,6 +20,7 @@ import { GameMenu } from "@/components/GameMenu.tsx";
 import { playCue, haptic } from "@/lib/audio.ts";
 import { shareSummary } from "@/lib/share.ts";
 import { avatarColor } from "@/screens/SetupScreen.tsx";
+import { TopBar } from "@/components/AppChrome.tsx";
 
 const fmt = (value: number) => value.toLocaleString("en-US");
 
@@ -453,17 +454,7 @@ export function GameScreen() {
       className={`screen game-screen${settings.reducedMotion ? " is-reduced" : ""}`}
       aria-label="Game table"
     >
-      <header className="topbar">
-        <span className="wordmark">Farkle</span>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="pill" onClick={() => navigate("/rules")}>
-            Rules
-          </button>
-          <button type="button" className="pill" onClick={() => setMenuOpen(true)}>
-            Menu
-          </button>
-        </div>
-      </header>
+      <TopBar onMenu={() => setMenuOpen(true)} />
 
       {others.length ? (
         <div className="tabs" role="list" aria-label="Other players">
@@ -650,9 +641,13 @@ export function GameScreen() {
 
       {menuOpen ? (
         <GameMenu
-          mode="local"
-          onClose={() => setMenuOpen(false)}
-          onLeave={() => {
+                  mode="local"
+                  onClose={() => setMenuOpen(false)}
+                  onRules={() => {
+                    setMenuOpen(false);
+                    navigate("/rules");
+                  }}
+                  onLeave={() => {
             if (window.confirm("Leave the table? This game stays saved for resume.")) {
               setMenuOpen(false);
               navigate("/", { state: { fromLeave: true } });

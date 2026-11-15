@@ -9,6 +9,7 @@ import {
 import { useSession } from "@/store/session.ts";
 import { avatarColor } from "@/screens/SetupScreen.tsx";
 import { GameMenu } from "@/components/GameMenu.tsx";
+import { TopBar } from "@/components/AppChrome.tsx";
 import { playCue, haptic } from "@/lib/audio.ts";
 import { track } from "@/lib/analytics.ts";
 import { shareSummary } from "@/lib/share.ts";
@@ -173,20 +174,11 @@ export function ScoreGameScreen() {
 
   return (
     <section className="screen score-screen" aria-label="Scorepad">
-      <header className="topbar">
-        <span className="wordmark">Farkle</span>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="pill" onClick={() => navigate("/score/board")}>
-            Board
-          </button>
-          <button type="button" className="pill" onClick={() => navigate("/rules")}>
-            Rules
-          </button>
-          <button type="button" className="pill" onClick={() => setMenuOpen(true)}>
-            Menu
-          </button>
-        </div>
-      </header>
+      <TopBar onMenu={() => setMenuOpen(true)}>
+        <button type="button" className="pill" onClick={() => navigate("/score/board")}>
+          Board
+        </button>
+      </TopBar>
 
       <div className="score-head">
         <span className="score-head-label">{fmt(scorepad.config.target)} TO WIN</span>
@@ -314,6 +306,10 @@ export function ScoreGameScreen() {
         <GameMenu
           mode="score"
           onClose={() => setMenuOpen(false)}
+          onRules={() => {
+            setMenuOpen(false);
+            navigate("/rules");
+          }}
           onLeave={() => {
             if (window.confirm("Leave the table? This scorepad stays saved for resume.")) {
               setMenuOpen(false);

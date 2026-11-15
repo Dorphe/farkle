@@ -34,7 +34,9 @@ const DEFAULT_SETTINGS: Settings = {
   sound: true,
   haptics: true,
   shake: false,
-  dice: "auto",
+  /* The pen draws flat dice on the table, so that is the default look.
+     "3d" opts into the WebGL tumble; "auto" keeps WebGL where it exists. */
+  dice: "2d",
   reducedMotion: false,
   analytics: true,
 };

@@ -6,6 +6,8 @@ import { useOnline } from "@/store/online.ts";
 import { cleanCodeInput, onlineConfigured, savedOnlineName } from "@/lib/online.ts";
 import { RulesSheet } from "@/components/RulesSheet.tsx";
 import { PRESET_LABELS } from "@/screens/SetupScreen.tsx";
+import { GameMenu } from "@/components/GameMenu.tsx";
+import { ModeTabs, TopBar } from "@/components/AppChrome.tsx";
 
 export function OnlineSetupScreen() {
   const navigate = useNavigate();
@@ -23,6 +25,7 @@ export function OnlineSetupScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const configured = onlineConfigured();
   const presetName = detectPreset(draftConfig);
@@ -69,23 +72,10 @@ export function OnlineSetupScreen() {
 
   return (
     <section className="screen setup-screen" aria-label="Play with friends">
-      <header className="topbar">
-        <span className="wordmark">Farkle</span>
-        <button type="button" className="pill" onClick={() => navigate("/rules")}>
-          Rules
-        </button>
-      </header>
+      <TopBar onMenu={() => setMenuOpen(true)} />
 
-      <div className="mode-switch" role="group" aria-label="Game mode">
-        <button type="button" aria-pressed="false" onClick={() => navigate("/")}>
-          Play dice
-        </button>
-        <button type="button" aria-pressed="false" onClick={() => navigate("/score/setup")}>
-          Keep score
-        </button>
-        <button type="button" aria-pressed="true">
-          With friends
-        </button>
+      <div className="setup-tabs">
+        <ModeTabs active="online" />
       </div>
 
       <div className="setup-scroll">
@@ -176,22 +166,30 @@ export function OnlineSetupScreen() {
         </p>
       </div>
 
-      <div className="setup-tail">
-        <div className="setup-links">
-          <button type="button" className="setup-link" onClick={() => navigate("/history")}>
-            History
-          </button>
-          <button type="button" className="setup-link" onClick={() => navigate("/settings")}>
-            Settings
-          </button>
-        </div>
-      </div>
-
       {rulesOpen ? (
         <RulesSheet
           config={draftConfig}
           onChange={setDraftConfig}
           onClose={() => setRulesOpen(false)}
+        />
+      ) : null}
+
+      {menuOpen ? (
+        <GameMenu
+          mode="home"
+          onClose={() => setMenuOpen(false)}
+          onRules={() => {
+            setMenuOpen(false);
+            navigate("/rules");
+          }}
+          onHistory={() => {
+            setMenuOpen(false);
+            navigate("/history");
+          }}
+          onSettings={() => {
+            setMenuOpen(false);
+            navigate("/settings");
+          }}
         />
       ) : null}
     </section>

@@ -4,6 +4,8 @@ import { deriveScorepad, detectPreset, type PresetName } from "@farkle/engine";
 import { useSession } from "@/store/session.ts";
 import { RulesSheet } from "@/components/RulesSheet.tsx";
 import { avatarColor } from "@/screens/SetupScreen.tsx";
+import { GameMenu } from "@/components/GameMenu.tsx";
+import { ModeTabs, TopBar } from "@/components/AppChrome.tsx";
 
 const PRESET_LABELS: Record<PresetName | "custom", string> = {
   classic: "Classic",
@@ -26,6 +28,7 @@ export function ScoreSetupScreen() {
   const [name, setName] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (scorepad && deriveScorepad(scorepad).phase !== "gameOver") {
@@ -56,29 +59,19 @@ export function ScoreSetupScreen() {
 
   return (
     <section className="screen setup-screen" aria-label="Keep score">
-      <header className="topbar">
-        <span className="wordmark">Farkle</span>
-        <button type="button" className="pill" onClick={() => navigate("/rules")}>
-          Rules
-        </button>
-      </header>
+      <TopBar onMenu={() => setMenuOpen(true)} />
 
-      <div className="mode-switch" role="group" aria-label="Game mode">
-        <button type="button" aria-pressed="false" onClick={() => navigate("/")}>
-          Play dice
-        </button>
-        <button type="button" aria-pressed="true">
-          Keep score
-        </button>
-        <button type="button" aria-pressed="false" onClick={() => navigate("/online")}>
-          With friends
-        </button>
+      <div className="setup-tabs">
+        <ModeTabs active="score" />
       </div>
 
       <div className="setup-scroll">
         <div className="roster-wrap">
           <div className="roster-card">
-            <h2 className="roster-heading">PLAYERS</h2>
+            <div className="roster-head">
+              <h2 className="roster-heading">PLAYERS</h2>
+              <span className="roster-count">{scoreRoster.length} of 8</span>
+            </div>
             {scoreRoster.length === 0 ? (
               <p className="empty-note">No one at the table yet. Add two players to start.</p>
             ) : (
@@ -122,40 +115,45 @@ export function ScoreSetupScreen() {
               {notice}
             </p>
           ) : null}
-        </div>
-
-        <button type="button" className="rule-summary" onClick={() => setRulesOpen(true)}>
-          <span>
-            <span className="rule-summary-label">HOUSE RULES</span>
-            <span className="rule-summary-value">
-              {PRESET_LABELS[presetName]} · {draftConfig.target.toLocaleString("en-US")} to win
+          <button type="button" className="rule-summary" onClick={() => setRulesOpen(true)}>
+            <span>
+              <span className="rule-summary-label">HOUSE RULES</span>
+              <span className="rule-summary-value">
+                {PRESET_LABELS[presetName]} · {draftConfig.target.toLocaleString("en-US")} to win
+              </span>
             </span>
-          </span>
-          <span className="rule-summary-change">Change</span>
-        </button>
+            <span className="rule-summary-change">Change</span>
+          </button>
+        </div>
       </div>
 
       <div className="setup-tail">
-        <p className="hint">
-          {scoreRoster.length >= 8
-            ? "Table is full · eight players"
-            : `${scoreRoster.length} of 8 players · two to start`}
-        </p>
         <button type="button" className="btn-primary" onClick={start} disabled={scoreRoster.length < 2}>
           Start scorepad
         </button>
-        <div className="setup-links">
-          <button type="button" className="setup-link" onClick={() => navigate("/history")}>
-            History
-          </button>
-          <button type="button" className="setup-link" onClick={() => navigate("/settings")}>
-            Settings
-          </button>
-        </div>
       </div>
 
       {rulesOpen ? (
         <RulesSheet config={draftConfig} onChange={setDraftConfig} onClose={() => setRulesOpen(false)} />
+      ) : null}
+
+      {menuOpen ? (
+        <GameMenu
+          mode="home"
+          onClose={() => setMenuOpen(false)}
+          onRules={() => {
+            setMenuOpen(false);
+            navigate("/rules");
+          }}
+          onHistory={() => {
+            setMenuOpen(false);
+            navigate("/history");
+          }}
+          onSettings={() => {
+            setMenuOpen(false);
+            navigate("/settings");
+          }}
+        />
       ) : null}
     </section>
   );

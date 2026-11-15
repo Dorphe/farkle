@@ -71,6 +71,11 @@ p {
   height: 44px;
   gap: 8px;
 }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .wordmark {
   font-size: 27px;
   font-weight: 800;
@@ -108,9 +113,10 @@ p {
 .setup-scroll {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-top: 12px;
   padding-bottom: 6px;
   scrollbar-width: thin;
   scrollbar-color: #ddd0c7 transparent;
@@ -129,8 +135,13 @@ p {
   background: transparent;
 }
 .roster-wrap {
-  flex: none;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   padding-top: 18px;
+  /* `safe` keeps the first card reachable when the roster outgrows the viewport */
+  justify-content: safe center;
 }
 .roster-card {
   display: flex;
@@ -331,7 +342,7 @@ p {
 }
 .turn-card-wrap {
   flex: none;
-  padding-top: 14px;
+  padding-top: 12px;
 }
 .turn-card {
   display: flex;
@@ -568,14 +579,14 @@ p {
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  padding: 20px 16px 24px;
+  padding: 24px;
   background: #ffffffb3;
   border-radius: var(--r-card);
 }
 .dice-area {
   position: relative;
   width: 100%;
-  min-height: 132px;
+  min-height: 218px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -650,9 +661,9 @@ p {
   height: 40px;
   display: grid;
   place-items: center;
-  border: 1px solid #d6c4b5;
-  border-radius: 10px;
-  background: #ffffff55;
+  border: 1px solid var(--color-stroke-primary);
+  border-radius: var(--r-slot);
+  background: var(--color-surface-primary);
 }
 .rack-slot.is-filled {
   border-color: transparent;
@@ -684,12 +695,12 @@ p {
   cursor: not-allowed;
 }
 
-/* a kept die sitting in the rack */
+/* a kept die sitting in the rack (pen: dieRack/die/kept) */
 .rack-slot .mini-die {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
-  background: #f7c9a9;
+  border-radius: var(--r-slot);
+  background: var(--accent-wash);
   animation: rack-land 160ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
   animation-delay: var(--flight-ms);
 }
@@ -849,14 +860,26 @@ p {
   pointer-events: none;
 }
 
-/* ---------- rules ---------- */
+/* ---------- rules (pen: menu/rules) ---------- */
 .rules-screen {
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #ddd0c7 transparent;
+}
+/* One centred column: no top bar in the design, just the title, the table and
+   a dark close pill pinned to the bottom. */
+.rules-column {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 32px;
 }
 .rules-title {
-  flex: none;
-  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 .rules-title h1 {
   font-size: 32px;
@@ -865,15 +888,22 @@ p {
   line-height: 1.05;
 }
 .rules-lede {
-  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 1.15em;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.5;
   color: var(--body);
 }
+.rules-lede li::marker {
+  color: var(--muted);
+  font-weight: 700;
+}
 .table-wrap {
   flex: none;
-  padding-top: 18px;
 }
 .score-card {
   padding: 4px 16px;
@@ -908,10 +938,6 @@ p {
 .score-points.accent {
   color: var(--accent-strong);
 }
-.callout-wrap {
-  flex: none;
-  padding-top: 16px;
-}
 .callout {
   padding: 14px;
   background: var(--accent-wash);
@@ -930,45 +956,10 @@ p {
   line-height: 1.45;
   color: var(--body);
 }
-.footnote {
-  flex: none;
-  padding-top: 14px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.45;
-  color: var(--muted);
-}
 .rules-tail {
   flex: none;
   padding-top: 12px;
   margin-top: auto;
-}
-.rules-options {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-top: 16px;
-}
-.option-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  border-top: 1px solid var(--line-soft);
-}
-.option-row:first-child {
-  border-top: 0;
-}
-.option-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--body);
-}
-.option-hint {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--muted);
 }
 .ghost-link {
   border: 0;
@@ -982,14 +973,14 @@ p {
   cursor: pointer;
 }
 
-/* ---------- overlays ---------- */
+/* ---------- overlays (pen: ingame/farkle, ingame/win) ---------- */
 .overlay {
   position: absolute;
   inset: 0;
   z-index: 60;
   display: flex;
   flex-direction: column;
-  padding: 12px 18px calc(16px + env(safe-area-inset-bottom));
+  padding: 14px 18px calc(24px + env(safe-area-inset-bottom));
   animation: overlay-in 0.2s ease both;
 }
 .overlay.night {
@@ -1367,7 +1358,6 @@ p {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  margin-top: 14px;
   padding: 13px 16px;
   border: 0;
   border-radius: var(--r-tile);
@@ -1395,23 +1385,6 @@ p {
   font-weight: 700;
   color: var(--accent-strong);
 }
-.setup-links {
-  display: flex;
-  justify-content: center;
-  gap: 14px;
-}
-.setup-link {
-  padding: 4px;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-
 /* ---------- settings / history ---------- */
 .settings-screen,
 .history-screen {
@@ -1440,7 +1413,7 @@ p {
 .settings-card {
   flex: none;
   margin-top: 14px;
-  padding: 0 16px;
+  padding: 2px 16px 4px;
   background: var(--card);
   border-radius: var(--r-card);
 }
@@ -1654,32 +1627,40 @@ p {
   cursor: pointer;
 }
 
-/* ---------- mode switch ---------- */
-.mode-switch {
+/* ---------- mode tabs (pen: startmenuTabs) ---------- */
+.setup-tabs {
   flex: none;
   display: flex;
-  gap: 4px;
-  margin-top: 8px;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.55);
+  gap: 10px;
+  padding: 12px 0;
 }
-.mode-switch button {
+.mode-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 4px;
+  border-radius: var(--r-pill);
+  background: var(--card);
+}
+.mode-tab {
   flex: 1 1 0;
-  height: 32px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--r-pill);
-  background: transparent;
-  color: var(--muted);
+  background: #ffffffb3;
+  color: var(--muted-soft);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
+  white-space: nowrap;
   cursor: pointer;
 }
-.mode-switch button[aria-pressed="true"] {
-  background: var(--card);
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgba(43, 34, 32, 0.08);
+.mode-tab[aria-pressed="true"] {
+  background: var(--accent-wash);
+  color: var(--accent);
 }
 
 /* ---------- resume + game menu ---------- */
@@ -1857,8 +1838,10 @@ p {
   background: var(--accent);
 }
 .entry-card {
+  /* the scorepad has no design frame of its own: the card is pushed to the
+     bottom so the keypad sits under the thumb rather than mid-page */
   flex: none;
-  margin-top: 10px;
+  margin-top: auto;
   padding: 12px 14px 14px;
   background: var(--card);
   border-radius: 26px;

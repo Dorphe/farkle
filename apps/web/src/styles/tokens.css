@@ -7,30 +7,59 @@
 }
 
 :root {
-  /* Soft Clay — the selected theme in farkle-design.pen */
-  --bg-top: #faf5f0;
-  --bg-bottom: #ece1d8;
-  --ink: #2b2220;
-  --body: #4a403b;
-  --muted: #6e625c; /* contrast-safe adjustment of the pen's #8B7F79 */
-  --muted-soft: #8b7f79;
-  --faint: #b09f97;
+  /* ---------- Pen variables ----------
+     The eight tokens defined in farkle-design.pen (its `variables` block).
+     Everything below aliases them, so changing a value here moves the whole
+     app with it. */
+  --color-accent: #d4715b;
+  --color-surface-primary: #faf5f0;
+  --color-surface-secondary: #ffffff;
+  --color-surface-tertiary: #fbe4da;
+  --color-text-primary: #2b2220;
+  --color-text-secondary: #8b7f79;
+  --color-text-emphasis: #d4715b;
+  --color-stroke-primary: #f3eae4;
 
-  --card: #ffffff;
-  --line: #f0e5de;
-  --line-soft: #f3eae4;
-  --field: #fbf6f2;
+  /* ---------- Shades the eight solid tokens can't express ----------
+     Gradient stop, body copy, and the contrast-safe adjustments the pen's
+     palette needs at small sizes. */
+  --color-surface-deep: #ece1d8;
+  --color-text-body: #4a403b;
+  --color-text-muted: #6e625c; /* contrast-safe stand-in for #8B7F79 at small sizes */
+  --color-text-faint: #b09f97;
+  --color-field: #fbf6f2;
+  --color-accent-strong: #b2523c; /* interactive fill; keeps cream text at AA */
+  --color-accent-deep: #a34f3a;
+  --color-accent-ink: #fff8f5;
+  --color-line: #f0e5de;
+  --color-night-soft: #d8c9c2;
+  --color-night-kicker: #a08f88;
+  --color-night-accent: #e98a70;
 
-  --accent: #d4715b;
-  --accent-strong: #b2523c; /* interactive fill; keeps white text at AA */
-  --accent-ink: #fff8f5;
-  --accent-wash: #fbe4da;
-  --accent-deep: #a34f3a;
+  /* ---------- App aliases ---------- */
+  --bg-top: var(--color-surface-primary);
+  --bg-bottom: var(--color-surface-deep);
+  --ink: var(--color-text-primary);
+  --body: var(--color-text-body);
+  --muted: var(--color-text-muted);
+  --muted-soft: var(--color-text-secondary);
+  --faint: var(--color-text-faint);
 
-  --night: #2b2220;
-  --night-soft: #d8c9c2;
-  --night-kicker: #a08f88;
-  --night-accent: #e98a70;
+  --card: var(--color-surface-secondary);
+  --line: var(--color-line);
+  --line-soft: var(--color-stroke-primary);
+  --field: var(--color-field);
+
+  --accent: var(--color-accent);
+  --accent-strong: var(--color-accent-strong);
+  --accent-ink: var(--color-accent-ink);
+  --accent-wash: var(--color-surface-tertiary);
+  --accent-deep: var(--color-accent-deep);
+
+  --night: var(--color-text-primary);
+  --night-soft: var(--color-night-soft);
+  --night-kicker: var(--color-night-kicker);
+  --night-accent: var(--color-night-accent);
 
   --avatar-1: #f7c9a9;
   --avatar-2: #b9dcc1;
@@ -41,6 +70,8 @@
 
   --r-card: 26px;
   --r-tile: 22px;
+  --r-die: 22px;
+  --r-slot: 10px;
   --r-pill: 999px;
 
   --font: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
