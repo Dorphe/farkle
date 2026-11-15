@@ -5,6 +5,7 @@ import { useSession } from "@/store/session.ts";
 import { RulesSheet } from "@/components/RulesSheet.tsx";
 import { GameMenu } from "@/components/GameMenu.tsx";
 import { ModeTabs, TopBar } from "@/components/AppChrome.tsx";
+import { avatarColor } from "@/lib/avatar.ts";
 import { EditIcon, PlusIcon } from "@/components/Icons.tsx";
 
 const PRESET_LABELS: Record<PresetName | "custom", string> = {
@@ -15,10 +16,6 @@ const PRESET_LABELS: Record<PresetName | "custom", string> = {
 };
 
 export { PRESET_LABELS };
-
-export function avatarColor(index: number): string {
-  return `var(--avatar-${(index % 6) + 1})`;
-}
 
 export function SetupScreen() {
   const navigate = useNavigate();

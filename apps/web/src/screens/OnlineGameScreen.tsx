@@ -1,25 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  currentPlayer,
-  diceLeft,
-  pendingTotal,
-  scoreSelection,
-  selectedFaces,
-  type Face,
-} from "@farkle/engine";
 import type { DiceTable } from "@farkle/dice";
 import type { RoomView } from "@farkle/protocol";
 import { isMyTurn, useOnline } from "@/store/online.ts";
 import { useSession } from "@/store/session.ts";
-import { DieButton, GhostDice, MiniDie } from "@/components/Die.tsx";
-import { BankFlash, useBankFlash } from "@/components/BankFlash.tsx";
+import { currentPlayer, pendingTotal, scoreSelection, selectedFaces } from "@farkle/engine";
+import { GameTable, tableFootNote } from "@/components/GameTable.tsx";
 import { WinnerScreen } from "@/components/WinnerScreen.tsx";
 import { ScoreboardSheet } from "@/components/ScoreboardSheet.tsx";
+import { GameMenu } from "@/components/GameMenu.tsx";
 import { playCue, haptic } from "@/lib/audio.ts";
 import { shareInvite, inviteLink } from "@/lib/online.ts";
 import { shareSummary } from "@/lib/share.ts";
-import { avatarColor } from "@/screens/SetupScreen.tsx";
 
 const fmt = (value: number) => value.toLocaleString("en-US");
 
@@ -57,7 +49,6 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
   const expectRollRef = useRef(false);
 
   const game = room.game;
-  const bankFlash = useBankFlash(game);
   const currentIndex = game?.turn ?? 0;
   const current = game ? currentPlayer(game) : null;
   const mine = Boolean(game && room.phase === "playing" && room.seats[currentIndex]?.id === playerId);
@@ -167,16 +158,7 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
     return () => window.clearTimeout(timer);
   }, [toast, error]);
 
-  const derived = useMemo(() => {
-    if (!game) return null;
-    const player = currentPlayer(game);
-    const picked = selectedFaces(game);
-    const selection = game.roll.length ? scoreSelection(picked, game.config) : 0;
-    const total = pendingTotal(game) ?? 0;
-    return { player, picked, selection, total };
-  }, [game]);
-
-  if (!game || !derived) {
+  if (!game) {
     return (
       <section className="screen join-screen">
         <div className="join-card">
@@ -187,7 +169,7 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
     );
   }
 
-  const { player, picked, selection, total } = derived;
+  const player = current ? currentPlayer(game) : null;
 
   function toggle(index: number) {
     if (!mine || game?.phase !== "awaitingKeep") return;
@@ -200,6 +182,8 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
   function rollNow() {
     if (!mine || busy || !game) return;
     if (game.phase === "awaitingKeep") {
+      const picked = selectedFaces(game);
+      const selection = game.roll.length ? scoreSelection(picked, game.config) : 0;
       if (selection === null || picked.length === 0) return;
       dispatchAction({ type: "keep" });
       const remaining = 6 - game.kept.length - picked.length;
@@ -256,231 +240,40 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
     navigate("/online");
   }
 
-  let rollLabel = "Roll";
-  let rollDisabled = true;
-  if (!mine) {
-    rollLabel = `Waiting for ${player.name}`;
-  } else if (busy) {
-    rollLabel = "Rolling…";
-  } else if (game.phase === "awaitingRoll") {
-    const left = diceLeft(game);
-    rollLabel = left === 0 ? "All six kept" : `Roll ${left} ${left === 1 ? "die" : "dice"}`;
-    rollDisabled = left === 0;
-  } else if (game.phase === "awaitingKeep") {
-    if (selection === null || picked.length === 0) {
-      rollLabel = selection === null ? "Not a scoring set" : "Select dice to keep";
-      rollDisabled = true;
-    } else {
-      const remaining = 6 - game.kept.length - picked.length;
-      rollLabel = remaining === 0 ? "Keep all six" : `Keep & roll ${remaining}`;
-      rollDisabled = false;
-    }
-  }
-  if (game.phase === "turnEnd" || game.phase === "gameOver") rollDisabled = true;
-
-  let bankLabel = "Bank";
-  let bankDisabled = true;
-  if (game.phase === "awaitingKeep") {
-    if (selection !== null && selection > 0) {
-      bankLabel = `Bank ${fmt(total)}`;
-      bankDisabled = false;
-    } else {
-      bankLabel = "Bank —";
-    }
-  } else if (game.phase === "awaitingRoll" && game.turnScore > 0) {
-    bankLabel = `Bank ${fmt(game.turnScore)}`;
-    bankDisabled = false;
-  }
-  if (!mine || game.phase === "turnEnd" || game.phase === "gameOver") bankDisabled = true;
-
-  const left = diceLeft(game);
-  const hint = tossing
-    ? "Rolling…"
-    : mine
-      ? game.phase === "awaitingRoll"
-        ? game.turnScore > 0
-          ? `Roll the ${left} ${left === 1 ? "die" : "dice"} left.`
-          : "Press Roll to start your turn."
-        : left === 0
-          ? "All six dice are kept — bank to finish the turn."
-          : "Tap scoring dice to keep them."
-      : `${player.name} is taking their turn.`;
-
-  const others = game.players
-    .map((value, index) => ({ value, index }))
-    .filter(({ index }) => index !== currentIndex);
-
   return (
-    <section
-      className={`screen game-screen online-game${settings.reducedMotion ? " is-reduced" : ""}`}
-      aria-label="Online game table"
+    <GameTable
+      game={game}
+      interactive={mine}
+      waitingFor={player?.name}
+      busy={busy || tossing}
+      use3D={use3D}
+      tableHost={tableHostRef}
+      hideGhosts={tossing}
+      className="online-game"
+      label="Online game table"
+      onToggle={toggle}
+      onRoll={rollNow}
+      onBank={bank}
+      onNextTurn={mine ? () => dispatchAction({ type: "nextTurn" }) : undefined}
+      onMenu={() => setMenuOpen(true)}
+      topbarExtra={
+        <button type="button" className="pill room-pill" onClick={() => void invite()}>
+          {room.code}
+        </button>
+      }
+      banner={
+        status === "reconnecting" ? (
+          <p className="reconnect-banner" role="status">
+            Reconnecting…
+          </p>
+        ) : null
+      }
+      isOffline={(index) => !room.seats[index]?.connected}
+      footNote={tableFootNote(game)}
     >
-      <header className="topbar">
-        <span className="wordmark">Farkle</span>
-        <div className="online-head-actions">
-          <button type="button" className="pill room-pill" onClick={() => void invite()}>
-            {room.code}
-          </button>
-          <button type="button" className="pill" onClick={() => setMenuOpen(true)}>
-            Menu
-          </button>
-        </div>
-      </header>
-
-      {status === "reconnecting" ? (
-        <p className="reconnect-banner" role="status">
-          Reconnecting…
-        </p>
-      ) : null}
-
-      {others.length ? (
-        <div className="tabs" role="list" aria-label="Other players">
-          {others.map(({ value, index }) => {
-            const seat = room.seats[index];
-            return (
-              <div className="tab" role="listitem" key={value.id}>
-                <span className="tab-name">
-                  {value.name}
-                  {seat && !seat.connected ? " · offline" : ""}
-                </span>
-                <span className="tab-score">{fmt(value.score)}</span>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-
-      <div className="turn-card-wrap">
-        <div className={`turn-card ${mine ? "is-mine" : ""}`} key={game.turn}>
-          <span className="avatar-lg" style={{ background: avatarColor(currentIndex) }} aria-hidden="true">
-            {player.name.slice(0, 1).toUpperCase()}
-          </span>
-          <div className="turn-block">
-            <span className="turn-name">{player.name}</span>
-            <span className="turn-kicker">{mine ? "YOUR TURN" : "THEIR TURN"}</span>
-          </div>
-          <span className="turn-score">{fmt(player.score)}</span>
-        </div>
-      </div>
-
-      <div className="tray">
-        <div className="dice-table" ref={tableHostRef} />
-        {!use3D &&
-          (game.phase === "awaitingKeep" && game.roll.length ? (
-            <div className="dice-grid" role="group" aria-label="Dice on the table">
-              {game.roll.map((face: Face, index: number) => (
-                <DieButton
-                  key={`${index}-${face}-${game.selected[index] ? 1 : 0}`}
-                  face={face}
-                  index={index}
-                  selected={game.selected[index] ?? false}
-                  onToggle={toggle}
-                  disabled={!mine}
-                />
-              ))}
-            </div>
-          ) : (
-            <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
-          ))}
-        {use3D && !tossing && game.phase !== "awaitingKeep" ? (
-          <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
-        ) : null}
-        <p className="tray-hint">{hint}</p>
-        {use3D && game.phase === "awaitingKeep" && game.roll.length ? (
-          <div className="sr-only" role="group" aria-label="Dice on the table">
-            {game.roll.map((face, index) => (
-              <button
-                key={`sr-${index}-${face}`}
-                type="button"
-                aria-pressed={game.selected[index] ?? false}
-                aria-label={`Die ${index + 1}, value ${face}${game.selected[index] ? ", kept" : ""}`}
-                onClick={() => toggle(index)}
-                disabled={!mine}
-              />
-            ))}
-          </div>
-        ) : null}
-        <BankFlash flash={bankFlash} />
-      </div>
-
-      <div className={`readout ${tossing ? "is-waiting" : ""}`}>
-        <div className="readout-group">
-          <span className="readout-label">SELECTED</span>
-          <span className={`readout-value ${selection !== null && selection > 0 ? "accent" : ""}`}>
-            {selection === null ? "—" : fmt(selection)}
-          </span>
-        </div>
-        <div className="readout-group">
-          <span className="readout-label">ON THE TABLE</span>
-          <span className="readout-value">{fmt(game.turnScore)}</span>
-        </div>
-        <div className="readout-group">
-          <span className="readout-label">FARKLES</span>
-          <span className="readout-value soft">{player.streak} / 3</span>
-        </div>
-      </div>
-
-      <div className="actions">
-        <button
-          type="button"
-          className="btn-action primary"
-          onClick={rollNow}
-          disabled={rollDisabled || !mine}
-        >
-          {rollLabel}
-        </button>
-        <button
-          type="button"
-          className="btn-action secondary"
-          onClick={bank}
-          disabled={bankDisabled}
-        >
-          {bankLabel}
-        </button>
-      </div>
-
-      <div className="game-foot">
-        <span className="foot-note">
-          Room {room.code} · {game.config.target.toLocaleString("en-US")} to win
-          {game.suddenDeath ? " · sudden death" : ""}
-        </span>
-      </div>
-
       {toast ? (
         <div className="toast" role="status">
           {toast}
-        </div>
-      ) : null}
-
-      <p className="sr-only" aria-live="polite">
-        {game.lastEvent?.text ?? ""}
-      </p>
-
-      {game.phase === "turnEnd" ? (
-        <div className="overlay night" role="dialog" aria-modal="true" aria-label="Turn over">
-          <div className="overlay-inner">
-            <span className="kicker">TURN OVER</span>
-            <div className="bust-dice" aria-hidden="true">
-              {game.roll.map((face, index) => (
-                <MiniDie key={index} face={face} />
-              ))}
-            </div>
-            <span className="farkle-word">Farkle</span>
-            <p className="farkle-sub">{game.lastEvent?.text ?? "No scoring dice — the turn is over."}</p>
-            {mine ? null : (
-              <p className="farkle-sub">Waiting for {player.name} to continue…</p>
-            )}
-          </div>
-          {mine ? (
-            <button
-              type="button"
-              className="btn-primary"
-              autoFocus
-              onClick={() => dispatchAction({ type: "nextTurn" })}
-            >
-              Next player
-            </button>
-          ) : null}
         </div>
       ) : null}
 
@@ -504,71 +297,32 @@ export function OnlineGameScreen({ room, playerId }: { room: RoomView; playerId:
       ) : null}
 
       {menuOpen ? (
-        <div
-          className="sheet-backdrop"
-          onClick={(event) => event.target === event.currentTarget && setMenuOpen(false)}
-        >
-          <div className="sheet menu-sheet" role="dialog" aria-modal="true" aria-label="Table menu">
-            <div className="sheet-head">
-              <div>
-                <h2>Menu</h2>
-                <p className="sheet-sub">Room {room.code} · with friends</p>
-              </div>
-              <button
-                type="button"
-                className="sheet-close"
-                onClick={() => setMenuOpen(false)}
-                aria-label="Close menu"
-              >
-                ×
-              </button>
-            </div>
-            <div className="menu-card">
-              <button
-                type="button"
-                className="menu-row"
-                onClick={() => {
-                  setMenuOpen(false);
-                  navigate("/rules");
-                }}
-              >
-                <b>How to play</b>
-                <span>Scoring table and house rules</span>
-              </button>
-              <button type="button" className="menu-row" onClick={() => void invite()}>
-                <b>Invite a player</b>
-                <span>Share the /join/{room.code} link</span>
-              </button>
-              <button
-                type="button"
-                className="menu-row"
-                onClick={() => {
-                  setMenuOpen(false);
-                  navigate("/history");
-                }}
-              >
-                <b>History</b>
-                <span>Recaps of finished games on this device</span>
-              </button>
-              <button
-                type="button"
-                className="menu-row"
-                onClick={() => {
-                  setMenuOpen(false);
-                  navigate("/settings");
-                }}
-              >
-                <b>Settings</b>
-                <span>Sound, motion, dice, privacy</span>
-              </button>
-              <button type="button" className="menu-row danger" onClick={onLeave}>
-                <b>Leave table</b>
-                <span>Your seat is held — reopen the link to rejoin</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <GameMenu
+          mode="online"
+          subtitle={`Room ${room.code} · with friends`}
+          onClose={() => setMenuOpen(false)}
+          onRules={() => {
+            setMenuOpen(false);
+            navigate("/rules");
+          }}
+          onInvite={() => {
+            setMenuOpen(false);
+            void invite();
+          }}
+          onLeave={() => {
+            setMenuOpen(false);
+            onLeave();
+          }}
+          onHistory={() => {
+            setMenuOpen(false);
+            navigate("/history");
+          }}
+          onSettings={() => {
+            setMenuOpen(false);
+            navigate("/settings");
+          }}
+        />
       ) : null}
-    </section>
+    </GameTable>
   );
 }

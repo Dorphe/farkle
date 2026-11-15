@@ -7,7 +7,7 @@ import {
   type ScorepadState,
 } from "@farkle/engine";
 import { useSession } from "@/store/session.ts";
-import { avatarColor } from "@/screens/SetupScreen.tsx";
+import { avatarColor } from "@/lib/avatar.ts";
 import { GameMenu } from "@/components/GameMenu.tsx";
 import { TopBar } from "@/components/AppChrome.tsx";
 import { playCue, haptic } from "@/lib/audio.ts";

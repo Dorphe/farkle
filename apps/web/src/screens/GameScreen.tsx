@@ -1,25 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import {
-  currentPlayer,
-  diceLeft,
-  pendingTotal,
-  scoreSelection,
-  selectedFaces,
-  type DiceGameState,
-  type Face,
-} from "@farkle/engine";
+import { diceLeft, scoreSelection, selectedFaces, type DiceGameState } from "@farkle/engine";
 import type { DiceTable } from "@farkle/dice";
 import { useSession } from "@/store/session.ts";
-import { DieButton, GhostDice, MiniDie } from "@/components/Die.tsx";
-import { BankFlash, useBankFlash } from "@/components/BankFlash.tsx";
+import { GameTable, tableFootNote } from "@/components/GameTable.tsx";
 import { WinnerScreen } from "@/components/WinnerScreen.tsx";
 import { ScoreboardSheet } from "@/components/ScoreboardSheet.tsx";
 import { GameMenu } from "@/components/GameMenu.tsx";
 import { playCue, haptic } from "@/lib/audio.ts";
 import { shareSummary } from "@/lib/share.ts";
-import { avatarColor } from "@/screens/SetupScreen.tsx";
-import { TopBar } from "@/components/AppChrome.tsx";
 
 const fmt = (value: number) => value.toLocaleString("en-US");
 
@@ -70,8 +59,6 @@ export function GameScreen() {
 
   const tableHostRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<DiceTable | null>(null);
-  const rollBtnRef = useRef<HTMLButtonElement>(null);
-  const bankBtnRef = useRef<HTMLButtonElement>(null);
   const selectRef = useRef<(index: number) => void>(() => {});
   const gameRef = useRef<DiceGameState | null>(game);
   const shakeRef = useRef<() => void>(() => {});
@@ -79,8 +66,6 @@ export function GameScreen() {
 
   gameRef.current = game;
   busyRef.current = busy;
-
-  const bankFlash = useBankFlash(game);
 
   const screenRef = useRef<HTMLElement>(null);
   const flightRef = useRef<{ nodes: HTMLButtonElement[]; from: number } | null>(null);
@@ -251,6 +236,7 @@ export function GameScreen() {
     if (!current || current.phase !== "awaitingRoll") return;
 
     const count = diceLeft(current);
+    if (count === 0) return;
     const started = dispatch({ type: "roll" });
     if (!started.ok) return;
 
@@ -275,7 +261,9 @@ export function GameScreen() {
   }
 
   function bank() {
-    if (!useSession.getState().game) return;
+    const current = useSession.getState().game;
+    if (!current) return;
+    if (current.phase === "turnEnd" || current.phase === "gameOver") return;
     dispatch({ type: "bank" });
   }
 
@@ -307,14 +295,15 @@ export function GameScreen() {
   shakeRef.current = () => {
     const current = useSession.getState().game;
     if (!current || current.phase === "gameOver" || current.phase === "turnEnd") return;
-    const button = rollBtnRef.current;
-    if (button && !button.disabled) {
-      button.click();
-      return;
-    }
     if (current.phase === "awaitingKeep") {
-      setToast("Shake won't roll — pick a scoring die first");
+      const picked = selectedFaces(current);
+      const selection = current.roll.length ? scoreSelection(picked, current.config) : 0;
+      if (selection === null || picked.length === 0) {
+        setToast("Shake won't roll — pick a scoring die first");
+        return;
+      }
     }
+    void rollNow();
   };
 
   useEffect(() => {
@@ -381,9 +370,9 @@ export function GameScreen() {
         return;
       }
       if (event.key.toLowerCase() === "r") {
-        if (rollBtnRef.current && !rollBtnRef.current.disabled) rollBtnRef.current.click();
+        void rollNow();
       } else if (event.key.toLowerCase() === "b") {
-        if (bankBtnRef.current && !bankBtnRef.current.disabled) bankBtnRef.current.click();
+        bank();
       } else if (/^[1-6]$/.test(event.key) && current.phase === "awaitingKeep") {
         const index = Number(event.key) - 1;
         if (index < current.roll.length) selectRef.current(index);
@@ -393,214 +382,24 @@ export function GameScreen() {
     return () => window.removeEventListener("keydown", onKey);
   }, [boardOpen]);
 
-  /* ---------- derived ---------- */
-  const derived = useMemo(() => {
-    if (!game) return null;
-    const player = currentPlayer(game);
-    const picked = selectedFaces(game);
-    const selection = game.roll.length ? scoreSelection(picked, game.config) : 0;
-    const total = pendingTotal(game) ?? 0;
-    return { player, picked, selection, total };
-  }, [game]);
-
-  if (!game || !derived) return <Navigate to="/" replace />;
-
-  const { player, picked, selection, total } = derived;
-  const currentIndex = game.turn;
-  const others = game.players.map((value, index) => ({ value, index })).filter(({ index }) => index !== currentIndex);
-
-  let rollLabel = "Roll";
-  let rollDisabled = true;
-  if (game.phase === "rolling" || busy) {
-    rollLabel = "Rolling…";
-  } else if (game.phase === "awaitingRoll") {
-    const left = diceLeft(game);
-    rollLabel = left === 0 ? "All six kept" : `Roll ${left} ${left === 1 ? "die" : "dice"}`;
-    rollDisabled = left === 0;
-  } else if (game.phase === "awaitingKeep") {
-    if (selection === null || picked.length === 0) {
-      rollLabel = selection === null ? "Not a scoring set" : "Select dice to keep";
-      rollDisabled = true;
-    } else {
-      const remaining = 6 - game.kept.length - picked.length;
-      rollLabel = remaining === 0 ? "Keep all six" : `Keep & roll ${remaining}`;
-      rollDisabled = false;
-    }
-  }
-  if (game.phase === "turnEnd" || game.phase === "gameOver") rollDisabled = true;
-
-  let bankDisabled = true;
-  if (game.phase === "awaitingKeep") {
-    bankDisabled = !(selection !== null && selection > 0);
-  } else if (game.phase === "awaitingRoll" && game.turnScore > 0) {
-    bankDisabled = false;
-  }
-  if (game.phase === "turnEnd" || game.phase === "gameOver") bankDisabled = true;
-
-  const left = diceLeft(game);
-  const hint =
-    game.phase === "rolling" || busy
-      ? "Rolling…"
-      : left === 0
-        ? "All six dice are kept — bank to finish the turn."
-        : game.turnScore > 0
-          ? `Roll the ${left} ${left === 1 ? "die" : "dice"} left.`
-          : "Press Roll to start the turn.";
+  if (!game) return <Navigate to="/" replace />;
 
   return (
-    <section
-      ref={screenRef}
-      className={`screen game-screen${settings.reducedMotion ? " is-reduced" : ""}`}
-      aria-label="Game table"
-    >
-      <TopBar onMenu={() => setMenuOpen(true)} />
-
-      {others.length ? (
-        <div className="tabs" role="list" aria-label="Other players">
-          {others.map(({ value, index }) => (
-            <div className="tab" role="listitem" key={value.id}>
-              <span className="tab-name">{value.name}</span>
-              <span className="tab-score">{fmt(value.score)}</span>
-              {value.streak > 0 ? <span className="sr-only">{value.streak} farkles in a row</span> : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="turn-card-wrap">
-        <div className="turn-card" key={game.turn}>
-          <span className="avatar-lg" style={{ background: avatarColor(currentIndex) }} aria-hidden="true">
-            {player.name.slice(0, 1).toUpperCase()}
-          </span>
-          <div className="turn-block">
-            <span className="turn-name">{player.name}</span>
-          </div>
-          <span className="turn-score">{fmt(player.score)}</span>
-          {player.streak > 0 ? <span className="sr-only">{player.streak} farkles in a row</span> : null}
-        </div>
-      </div>
-
-      <div className="tray game-tray">
-        <div className="table-card">
-          <div className={`dice-area${use3D ? " is-3d" : ""}`}>
-            <div className="dice-table" ref={tableHostRef} />
-            {game.phase === "turnEnd" ? (
-              <div className="busted-dice" aria-hidden="true">
-                {game.roll.map((face: Face, index: number) => (
-                  <MiniDie key={index} face={face} />
-                ))}
-              </div>
-            ) : null}
-            {game.phase !== "turnEnd" && !use3D &&
-              (game.phase === "awaitingKeep" && game.roll.length ? (
-                <div className="dice-grid" role="group" aria-label="Dice on the table">
-                  {game.roll.map((face: Face, index: number) => (
-                    <DieButton
-                      key={`${index}-${face}`}
-                      face={face}
-                      index={index}
-                      selected={game.selected[index] ?? false}
-                      onToggle={toggle}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
-              ))}
-            {use3D && game.phase === "awaitingRoll" ? (
-              <GhostDice count={game.kept.length >= 6 ? 6 : 6 - game.kept.length} />
-            ) : null}
-            {use3D && game.phase === "awaitingKeep" ? (
-              <div className="sr-only" role="group" aria-label="Dice on the table">
-                {game.roll.map((face, index) => (
-                  <button
-                    key={`sr-${index}-${face}`}
-                    type="button"
-                    aria-pressed={game.selected[index] ?? false}
-                    aria-label={`Die ${index + 1}, value ${face}${game.selected[index] ? ", kept" : ""}`}
-                    onClick={() => toggle(index)}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-
-          {game.phase === "turnEnd" ? (
-            <div className="farkle-stack">
-              <span className="farkle-word">Farkle!</span>
-              <span className="farkle-hint">You lose your turn.</span>
-            </div>
-          ) : (
-            <p className={`keeping${selection !== null && selection > 0 ? " is-live" : ""}`}>
-              {selection !== null && selection > 0 ? (
-                <>
-                  Keeping <b>{fmt(selection)}</b>
-                </>
-              ) : (
-                <span className="keeping-hint">
-                  {game.phase === "awaitingKeep"
-                    ? selection === null
-                      ? "Not a scoring set"
-                      : "Tap dice to keep"
-                    : hint}
-                </span>
-              )}
-            </p>
-          )}
-
-          {game.phase === "turnEnd" ? (
-            <button
-              type="button"
-              className="end-turn-btn"
-              autoFocus
-              onClick={() => dispatch({ type: "nextTurn" })}
-            >
-              Next player
-            </button>
-          ) : (
-            <button
-              ref={rollBtnRef}
-              type="button"
-              className="roll-btn"
-              onClick={() => void rollNow()}
-              disabled={rollDisabled}
-            >
-              {rollLabel}
-            </button>
-          )}
-        </div>
-
-        {game.phase === "turnEnd" ? null : <div className="rack-card">
-          <div className="rack-row">
-            {Array.from({ length: 6 }, (_, slot) => {
-              const face = game.kept[slot];
-              return (
-                <span key={slot} className={`rack-slot${face !== undefined ? " is-filled" : ""}`}>
-                  {face !== undefined ? <MiniDie face={face} /> : null}
-                </span>
-              );
-            })}
-            <span className="rack-score" aria-label={`${fmt(game.turnScore)} on the table`}>
-              {fmt(game.turnScore)}
-            </span>
-          </div>
-          <button
-            ref={bankBtnRef}
-            type="button"
-            className="end-turn-btn"
-            onClick={bank}
-            disabled={bankDisabled}
-            aria-label={bankDisabled ? "End turn" : `End turn and bank ${fmt(total)}`}
-          >
-            End turn
-          </button>
-        </div>}
-
-        <BankFlash flash={bankFlash} />
-      </div>
-
-      <div className="game-foot">
-        {motionReady ? (
+    <GameTable
+      game={game}
+      interactive
+      busy={busy}
+      use3D={use3D}
+      tableHost={tableHostRef}
+      sectionRef={screenRef}
+      className={settings.reducedMotion ? "is-reduced" : ""}
+      onToggle={toggle}
+      onRoll={() => void rollNow()}
+      onBank={bank}
+      onNextTurn={() => dispatch({ type: "nextTurn" })}
+      onMenu={() => setMenuOpen(true)}
+      footLeft={
+        motionReady ? (
           <button
             type="button"
             className="switch"
@@ -613,13 +412,10 @@ export function GameScreen() {
           </button>
         ) : (
           <span />
-        )}
-        <span className="foot-note">
-          {player.streak} / 3 farkles · {game.config.target.toLocaleString("en-US")} to win
-          {game.suddenDeath ? " · sudden death" : ""}
-        </span>
-      </div>
-
+        )
+      }
+      footNote={tableFootNote(game)}
+    >
       {toast ? (
         <div className="toast" role="status">
           {toast}
@@ -634,10 +430,6 @@ export function GameScreen() {
           </button>
         </div>
       ) : null}
-
-      <p className="sr-only" aria-live="polite">
-        {game.lastEvent?.text ?? ""}
-      </p>
 
       {game.phase === "gameOver" ? (
         <WinnerScreen
@@ -661,13 +453,13 @@ export function GameScreen() {
 
       {menuOpen ? (
         <GameMenu
-                  mode="local"
-                  onClose={() => setMenuOpen(false)}
-                  onRules={() => {
-                    setMenuOpen(false);
-                    navigate("/rules");
-                  }}
-                  onLeave={() => {
+          mode="local"
+          onClose={() => setMenuOpen(false)}
+          onRules={() => {
+            setMenuOpen(false);
+            navigate("/rules");
+          }}
+          onLeave={() => {
             if (window.confirm("Leave the table? This game stays saved for resume.")) {
               setMenuOpen(false);
               navigate("/", { state: { fromLeave: true } });
@@ -690,6 +482,6 @@ export function GameScreen() {
           }}
         />
       ) : null}
-    </section>
+    </GameTable>
   );
 }

@@ -6,16 +6,20 @@ export function GameMenu({
   onRules,
   onLeave,
   onNewGame,
+  onInvite,
   onHistory,
   onSettings,
+  subtitle,
 }: {
-  mode: "home" | "local" | "score";
+  mode: "home" | "local" | "score" | "online";
   onClose: () => void;
   onRules?: () => void;
   onLeave?: () => void;
   onNewGame?: () => void;
+  onInvite?: () => void;
   onHistory: () => void;
   onSettings: () => void;
+  subtitle?: string;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -28,8 +32,9 @@ export function GameMenu({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const subtitle =
-    mode === "home" ? "Farkle" : mode === "score" ? "Scorekeeping" : "Dice table";
+  const caption =
+    subtitle ??
+    (mode === "home" ? "Farkle" : mode === "score" ? "Scorekeeping" : "Dice table");
 
   return (
     <div className="sheet-backdrop" onClick={(event) => event.target === event.currentTarget && onClose()}>
@@ -37,7 +42,7 @@ export function GameMenu({
         <div className="sheet-head">
           <div>
             <h2>Menu</h2>
-            <p className="sheet-sub">{subtitle}</p>
+            <p className="sheet-sub">{caption}</p>
           </div>
           <button ref={closeRef} type="button" className="sheet-close" onClick={onClose} aria-label="Close menu">
             ×
@@ -51,10 +56,20 @@ export function GameMenu({
               <span>Scoring table and house rules</span>
             </button>
           ) : null}
+          {onInvite ? (
+            <button type="button" className="menu-row" onClick={onInvite}>
+              <b>Invite a player</b>
+              <span>Share the join link</span>
+            </button>
+          ) : null}
           {onLeave ? (
             <button type="button" className="menu-row" onClick={onLeave}>
               <b>Leave table</b>
-              <span>Saved on this device — resume from setup</span>
+              <span>
+                {mode === "online"
+                  ? "Your seat is held — reopen the link to rejoin"
+                  : "Saved on this device — resume from setup"}
+              </span>
             </button>
           ) : null}
           <button type="button" className="menu-row" onClick={onHistory}>

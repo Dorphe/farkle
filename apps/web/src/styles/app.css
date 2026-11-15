@@ -493,61 +493,6 @@ p {
 .die.kept .pips i.on {
   background: var(--color-surface-secondary);
 }
-.tray-hint {
-  position: relative;
-  z-index: 2;
-  margin-top: 14px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
-  text-align: center;
-  pointer-events: none;
-}
-.tray-hint b {
-  color: var(--ink);
-  font-weight: 700;
-}
-
-.readout {
-  flex: none;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 0;
-  border-top: 1px solid #eadfd7;
-  transition: opacity 0.2s ease;
-}
-.readout.is-waiting {
-  opacity: 0.35;
-}
-.readout-group {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.readout-label {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.readout-value {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.7px;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.readout-value.accent {
-  color: var(--accent);
-}
-.readout-value.soft {
-  color: var(--muted);
-}
-
 .actions {
   flex: none;
   display: flex;
@@ -1007,9 +952,6 @@ p {
   padding: 14px 18px calc(24px + env(safe-area-inset-bottom));
   animation: overlay-in 0.2s ease both;
 }
-.overlay.night {
-  background: var(--night);
-}
 .overlay-inner {
   flex: 1;
   display: flex;
@@ -1060,11 +1002,6 @@ p {
   font-weight: 600;
   color: var(--muted);
 }
-.overlay.night .btn-primary {
-  background: var(--accent-ink);
-  color: var(--ink);
-}
-
 .winner-screen {
   position: absolute;
   inset: 0;
@@ -2535,15 +2472,6 @@ p {
 }
 
 /* game */
-.turn-card.is-mine {
-  box-shadow: 0 0 0 2px var(--accent-wash);
-}
-.turn-kicker {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 1.4px;
-  color: var(--muted);
-}
 .dice-grid.readonly .die,
 .die:disabled {
   cursor: default;

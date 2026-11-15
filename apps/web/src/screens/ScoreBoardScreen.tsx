@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { deriveScorepad } from "@farkle/engine";
 import { useSession } from "@/store/session.ts";
-import { avatarColor } from "@/screens/SetupScreen.tsx";
+import { avatarColor } from "@/lib/avatar.ts";
 
 const fmt = (value: number) => value.toLocaleString("en-US");
 

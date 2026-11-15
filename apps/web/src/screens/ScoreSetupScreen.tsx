@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { deriveScorepad, detectPreset, type PresetName } from "@farkle/engine";
 import { useSession } from "@/store/session.ts";
 import { RulesSheet } from "@/components/RulesSheet.tsx";
-import { avatarColor } from "@/screens/SetupScreen.tsx";
+import { avatarColor } from "@/lib/avatar.ts";
 import { GameMenu } from "@/components/GameMenu.tsx";
 import { ModeTabs, TopBar } from "@/components/AppChrome.tsx";
 import { EditIcon, PlusIcon } from "@/components/Icons.tsx";

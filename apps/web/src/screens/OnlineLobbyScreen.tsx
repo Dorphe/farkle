@@ -4,7 +4,8 @@ import { detectPreset } from "@farkle/engine";
 import type { RoomView } from "@farkle/protocol";
 import { useOnline } from "@/store/online.ts";
 import { inviteLink, shareInvite } from "@/lib/online.ts";
-import { avatarColor, PRESET_LABELS } from "@/screens/SetupScreen.tsx";
+import { PRESET_LABELS } from "@/screens/SetupScreen.tsx";
+import { avatarColor } from "@/lib/avatar.ts";
 
 export function OnlineLobbyScreen({ room, playerId }: { room: RoomView; playerId: string }) {
   const navigate = useNavigate();
