@@ -34,6 +34,20 @@ export function UpdatePrompt() {
     return () => window.clearTimeout(timer);
   }, [needRefresh, playing, updateServiceWorker]);
 
+  // With `skipWaiting` the new worker takes control without the page being
+  // asked. Reload on that signal while no turn is in flight, so a deploy lands
+  // on the next visit instead of behind a cache.
+  useEffect(() => {
+    const sw = navigator.serviceWorker;
+    if (!sw) return;
+    const onControllerChange = () => {
+      if (playing) return;
+      window.location.reload();
+    };
+    sw.addEventListener("controllerchange", onControllerChange);
+    return () => sw.removeEventListener("controllerchange", onControllerChange);
+  }, [playing]);
+
   // A long-lived tab (or the installed PWA) should still notice a deploy
   // without being closed first.
   useEffect(() => {

@@ -39,8 +39,11 @@ export default defineConfig({
         navigateFallback: "index.html",
         navigateFallbackDenylist: [/\/classic\//, /\/v2\/assets\//],
         cleanupOutdatedCaches: true,
-        clientsClaim: false,
-        skipWaiting: false,
+        // A waiting worker used to sit behind the update banner until someone
+        // tapped Refresh, which left clients on an old build indefinitely.
+        // Take control at once and let the app decide when to reload.
+        clientsClaim: true,
+        skipWaiting: true,
       },
     }),
   ],
