@@ -176,10 +176,17 @@ export function GameTable({
           <div className="turn-block">
             <span className="turn-name">{player.name}</span>
           </div>
-          <span className="turn-score">{fmt(player.score)}</span>
-          {player.streak > 0 ? (
-            <span className="sr-only">{player.streak} farkles in a row</span>
-          ) : null}
+          <div className="turn-score-block">
+            <span className="turn-score">{fmt(player.score)}</span>
+            <span className="turn-farkles" aria-hidden="true">
+              {[0, 1, 2].map((dot) => (
+                <i key={dot} className={dot < player.streak ? "on" : ""} />
+              ))}
+            </span>
+            {player.streak > 0 ? (
+              <span className="sr-only">{player.streak} farkles in a row</span>
+            ) : null}
+          </div>
         </div>
       </div>
 

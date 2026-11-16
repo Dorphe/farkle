@@ -26287,15 +26287,65 @@
           ]
         },
         {
-          "type": "text",
-          "id": "rGXMy",
-          "name": "Score",
-          "fill": "#2B2220",
-          "content": "5,850",
-          "fontFamily": "Plus Jakarta Sans",
-          "fontSize": 30,
-          "fontWeight": "800",
-          "letterSpacing": -1.2
+          "type": "frame",
+          "id": "IwhPB",
+          "name": "Frame 15",
+          "layout": "vertical",
+          "gap": 4,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "rGXMy",
+              "name": "Score",
+              "fill": "#2B2220",
+              "content": "5,850",
+              "fontFamily": "Plus Jakarta Sans",
+              "fontSize": 30,
+              "fontWeight": "800",
+              "letterSpacing": -1.2
+            },
+            {
+              "type": "frame",
+              "id": "EInKL",
+              "name": "farkleTracker",
+              "height": 6,
+              "gap": 4,
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "S0uch",
+                  "name": "Pip",
+                  "fill": "$color/emphasis",
+                  "width": 6,
+                  "height": "fill_container"
+                },
+                {
+                  "type": "ellipse",
+                  "id": "pjTpT",
+                  "name": "Pip",
+                  "fill": "$color/surface/secondary",
+                  "width": 6,
+                  "height": "fill_container",
+                  "stroke": "$color/stroke/primary",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner"
+                },
+                {
+                  "type": "ellipse",
+                  "id": "ZAyey",
+                  "name": "Pip",
+                  "fill": "$color/surface/secondary",
+                  "width": 6,
+                  "height": "fill_container",
+                  "stroke": "$color/stroke/primary",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner"
+                }
+              ]
+            }
+          ]
         }
       ]
     },
